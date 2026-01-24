@@ -175,7 +175,7 @@ const chatSlice = createSlice({
         setLoading: (state, action) => {
             state.loading = action.payload;
         },
-        clearChatState: (state) => {
+        clearChatState: () => {
             return { ...initialState };
         }
     }

@@ -116,7 +116,7 @@ function SearchModal({ isOpen, onClose, onSearch }) {
                     alt={`${user?.fullName || 'User'}'s avatar`}
                   />
                   <span>
-                    <h2 className="p-0 font-semibold text-white text-[18px]">{user?.fullName}</h2>
+                    <h2 className="p-0 font-semibold text-white text-[18px]">{user?.fullname}</h2>
                     <p className="text-[13px] text-white">@{user?.username}</p>
                   </span>
                 </div>

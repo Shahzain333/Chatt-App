@@ -1,4 +1,3 @@
-// supabase-client.js
 import { createClient } from "@supabase/supabase-js";
 
 class SupabaseService {
@@ -8,12 +7,17 @@ class SupabaseService {
   }
 
   init() {
+
     if (this.supabase) return this.supabase;
     
     this.supabase = createClient(
       import.meta.env.VITE_SUPABASE_URL,
       import.meta.env.VITE_SUPABASE_ANON_KEY,
-      { auth: { persistSession: true } }
+      { 
+        auth: { 
+          persistSession: true 
+        } 
+      }
     );
 
     return this.supabase;
@@ -264,7 +268,178 @@ class SupabaseService {
     }
   }
 
-  // ============ HELPERS ============
+  // ============ MESSAGES ============
+  
+  async sendMessage(messageText, chatId, currentUserUid, selectedUserUid) {
+    try {
+      const supabase = this.init();
+      
+      // Get current user email
+      const { data: currentUserData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('uid', currentUserUid)
+        .single();
+
+      if (!currentUserData) {
+        throw new Error("Current user not found");
+      }
+      
+      // Get selected user email
+      const { data: selectedUserData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('uid', selectedUserUid)
+        .single();
+
+      if (!selectedUserData) {
+        throw new Error("Selected user not found");
+      }
+
+      const currentUserEmail = currentUserData.email;
+      const selectedUserEmail = selectedUserData.email;
+
+      // Check if chat exists
+      const { data: existingChat, error: chatError } = await supabase
+        .from('chats')
+        .select('*')
+        .eq('id', chatId)
+        .single();
+
+      // If chat doesn't exist, create it
+      if (chatError && chatError.code === 'PGRST116') {
+        // Create new chat
+        const { error: insertChatError } = await supabase
+          .from('chats')
+          .insert({
+            id: chatId,
+            user1email: currentUserEmail,
+            user2email: selectedUserEmail,
+            lastmessage: messageText,
+            lastmessagetimestamp: new Date().toISOString(),
+          });
+
+        if (insertChatError) {
+          console.error('Error creating chat:', insertChatError);
+          throw insertChatError;
+        }
+
+      } else if (!chatError && existingChat) {
+        // Update existing chat
+        const { error: updateError } = await supabase
+          .from('chats')
+          .update({
+            lastmessage: messageText,
+            lastmessagetimestamp: new Date().toISOString()
+          })
+          .eq('id', chatId);
+
+        if (updateError) {
+          console.error('Error updating chat:', updateError);
+          throw updateError;
+        }
+      } else {
+        // Handle other errors
+        if (chatError) {
+          console.error('Error checking chat existence:', chatError);
+          throw chatError;
+        }
+      }
+
+      // Send message
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          chatid: chatId,
+          text: messageText,
+          sender: currentUserEmail,
+          timestamp: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error inserting message:', error);
+        throw error;
+      }
+      
+      return { ...data, chatId: chatId };
+
+    } catch (error) {
+      console.error("Error sending message:", error);
+      throw error;
+    }
+}
+
+  listenForMessages(chatId, callback) {
+    
+    if(!chatId) return () => {};
+
+    const supabase = this.init();
+
+    //Get initial data
+    this.getMessages(chatId).then(messages => {
+      //console.log('DEBUG: Initial messages for chat', chatId, ':', messages);
+      callback(messages || [])
+    }) 
+
+    //listen for message
+    const channel = supabase
+      .channel(`messages-${chatId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `chatid=eq.${chatId}`
+        },
+        async () => {
+          //console.log('DEBUG: Message change detected for chat:', chatId);
+          const messages = await this.getMessages(chatId);
+          callback(messages)
+        }
+      )
+      .subscribe()
+      // .subscribe((status) => {
+      //   console.log('DEBUG: Subscription status:', status, 'for chat:', chatId);
+      // });
+
+      const unsubscribe = () => {
+        supabase.removeChannel(channel)
+        this.subscriptions.delete(`messages-${chatId}`)
+      } 
+
+      this.subscriptions.set(`messages-${chatId}`, unsubscribe);
+      return unsubscribe;
+
+  }
+
+  async getMessages(chatId) {
+    try {
+      
+      const supabase = this.init()
+
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('chatid', chatId)
+        .order('timestamp', { ascending: true }) 
+
+      if (error) {
+        console.error('DEBUG: Error fetching messages:', error);
+        throw error;
+      }
+
+      return data || [];
+
+    } catch (error) {
+      console.error("Error getting messages:", error);
+      throw error;
+    }
+  }
+
+  // Helper Methods
   async getCurrentUser() {
     const supabase = this.init();
     const { data: { user } } = await supabase.auth.getUser();
@@ -289,5 +464,5 @@ class SupabaseService {
   }
 }
 
-const supabaseService = new SupabaseService();
-export default supabaseService;
+const firebaseService = new SupabaseService();
+export default firebaseService ;

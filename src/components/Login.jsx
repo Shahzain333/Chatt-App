@@ -119,7 +119,7 @@ function Login() {
                     } else {
                         // Fallback with proper values
                         dispatch(login({
-                            uid: authUser.uid,
+                            uid: authUser.id,
                             email: authUser.email,
                             username: authUser.email?.split('@')[0] || '',
                             fullName: authUser.fullname || authUser.user_metadata?.full_name || '',
@@ -131,7 +131,6 @@ function Login() {
                     console.error("Error fetching user data:", error);
                     dispatch(setError('Failed to load user profile'));
                 }
-
             
             } else {
                 dispatch(logout());

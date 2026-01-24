@@ -16,7 +16,7 @@ const MobileMenu = ({ isOpen, onDeleteSelected, selectedUser, onClose }) => {
           >
             <RiDeleteBinLine className="text-red-500 text-lg" />
             <span className="text-sm font-medium">
-              {selectedUser ? `Delete ${selectedUser.fullName || 'User'}` : 'Delete Chat'}
+              {selectedUser ? `Delete ${selectedUser.fullname || 'User'}` : 'Delete Chat'}
             </span>
           </button>
         </li>

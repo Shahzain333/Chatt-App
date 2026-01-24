@@ -29,13 +29,14 @@ function Chatbox({ onBack }) {
     const scrollRef = useRef(null);
     
     const dispatch = useDispatch();
-    const { messages, selectedUser, currentUser, loading } = useSelector(state => state.chat);
+    const { messages, selectedUser, loading } = useSelector(state => state.chat);
+    const { currentUser } = useSelector(state => state.auth)
     
     const chatId = useMemo(() => {
         if (!selectedUser?.uid || !currentUser?.uid) return null;
         return currentUser.uid < selectedUser.uid 
-            ? `${currentUser.uid}-${selectedUser.uid}`
-            : `${selectedUser.uid}-${currentUser.uid}`;
+            ? `${currentUser.uid}_${selectedUser.uid}`
+            : `${selectedUser.uid}_${currentUser.uid}`;
     }, [selectedUser, currentUser]);
 
     // Messages listener
@@ -75,35 +76,39 @@ function Chatbox({ onBack }) {
         if (!messages || !Array.isArray(messages)) return [];
         
         return [...messages].sort((a, b) => {
-            const aTime = a.timestamp?.seconds || a.timestamp || 0;
-            const bTime = b.timestamp?.seconds || b.timestamp || 0;
+            const aTime = new Date(a.timestamp || 0).getTime();
+            const bTime = new Date(b.timestamp || 0).getTime();
             return aTime - bTime;
         });
+
     }, [messages]);
 
     const handleMessage = async (e) => {
         e.preventDefault();
-        
-        if (!messageText.trim() || !selectedUser?.uid || !currentUser?.uid || !chatId || loading) return;
-        
+
+        if (!messageText.trim() || !selectedUser?.uid || !currentUser?.uid || !chatId || loading) {
+            return;
+        }
+
         try {
 
             dispatch(setLoading(true));
             
             if (editingMessage) {
                 // Update existing message - optimistic update
-                dispatch(updateMessage({
-                    messageId: editingMessage.id,
-                    newText: messageText.trim()
-                }));
+                // dispatch(updateMessage({
+                //     messageId: editingMessage.id,
+                //     newText: messageText.trim()
+                // }));
+                console.log("Update Msg")
                 
-                // Update in Firebase
-                await firebaseService.updateMessage(chatId, editingMessage.id, messageText.trim());
-                setEditingMessage(null);
+                // // Update in Firebase
+                // await firebaseService.updateMessage(chatId, editingMessage.id, messageText.trim());
+                // setEditingMessage(null);
 
-                toast.success('Message updated successfully', {
-                    duration: 3000,
-                });
+                // toast.success('Message updated successfully', {
+                //     duration: 3000,
+                // });
 
             } else {
                 // Send new message - optimistic update
@@ -112,10 +117,7 @@ function Chatbox({ onBack }) {
                     id: tempMessageId,
                     text: messageText.trim(),
                     sender: currentUser.email,
-                    timestamp: {
-                        seconds: Math.floor(Date.now() / 1000),
-                        nanoseconds: 0
-                    },
+                    timestamp: new Date().toISOString(),
                     isOptimistic: true
                 };
                 
@@ -149,7 +151,7 @@ function Chatbox({ onBack }) {
             
         } catch (error) {
             console.error("Error sending message:", error);
-            alert('Failed to send message. Please try again.');
+            toast.error('Failed to send message. Please try again.');
         } finally {
             dispatch(setLoading(false));
         }
@@ -178,45 +180,47 @@ function Chatbox({ onBack }) {
 
     const handleDelete = async (messageId) => {
         // Don't allow deleting optimistic messages
-        const messageToDelete = messages.find(msg => msg.id === messageId);
-        if (messageToDelete?.isOptimistic) return;
+        // const messageToDelete = messages.find(msg => msg.id === messageId);
+        // if (messageToDelete?.isOptimistic) return;
 
-        setActiveMessageId(null);
+        // setActiveMessageId(null);
 
-        toast(`Are you sure you want to delete this message?`, {
-            description: 'This action cannot be undone.',
-            duration: 3000,
-            action: {
-                label: 'Delete',
-                onClick: async () => {
-                    try {
-                        dispatch(setLoading(true));
-                        await firebaseService.deleteMessage(chatId, messageId);
-                        setActiveMessageId(null);
+        // toast(`Are you sure you want to delete this message?`, {
+        //     description: 'This action cannot be undone.',
+        //     duration: 3000,
+        //     action: {
+        //         label: 'Delete',
+        //         onClick: async () => {
+        //             try {
+        //                 dispatch(setLoading(true));
+        //                 await firebaseService.deleteMessage(chatId, messageId);
+        //                 setActiveMessageId(null);
 
-                        toast.success('Message deleted successfully!', {
-                            duration: 3000,
-                        });
+        //                 toast.success('Message deleted successfully!', {
+        //                     duration: 3000,
+        //                 });
 
-                    } catch (error) {
-                        console.error('Error deleting message:', error);
+        //             } catch (error) {
+        //                 console.error('Error deleting message:', error);
                         
-                        toast.error('Failed to delete message. Please try again.', {
-                            duration: 3000,
-                        });
+        //                 toast.error('Failed to delete message. Please try again.', {
+        //                     duration: 3000,
+        //                 });
 
-                    } finally {
-                        dispatch(setLoading(false));
-                    }
-                }
-            },
-            cancel: {
-                label: 'Cancel',
-                onClick: () => {
-                    setActiveMessageId(null);
-                }
-            },
-        })
+        //             } finally {
+        //                 dispatch(setLoading(false));
+        //             }
+        //         }
+        //     },
+        //     cancel: {
+        //         label: 'Cancel',
+        //         onClick: () => {
+        //             setActiveMessageId(null);
+        //         }
+        //     },
+        // })
+
+        console.log("Message Delete", messageId)
 
     };
 
@@ -227,54 +231,57 @@ function Chatbox({ onBack }) {
 
     // Delete chats
     const handleDeleteSelectedUserChats = async () => {
-        if (!selectedUser || !currentUser) {
-            toast.info("Please select a user first to delete the chat.", {
-                duration: 3000,
-            });
-            setIsMobileMenuOpen(false);
-            return;
-        }
+        
+        // if (!selectedUser || !currentUser) {
+        //     toast.info("Please select a user first to delete the chat.", {
+        //         duration: 3000,
+        //     });
+        //     setIsMobileMenuOpen(false);
+        //     return;
+        // }
 
-        setIsMobileMenuOpen(false);
+        // setIsMobileMenuOpen(false);
 
-        toast(`Are you sure you want to delete all chats and messages with 
-            ${selectedUser?.fullName || 'this user'}?`,{
-                description: 'This action cannot be undone. All messages will be permanently deleted.',
-                duration: 3000,
-                action: {
-                    label: 'Delete',
-                    onClick: async () => {
-                        try {
-                            dispatch(setLoading(true));
-                            await firebaseService.deleteChats(chatId);
-                            dispatch(deleteChats(chatId));
-                            dispatch(setSelectedUser(null));
-                            dispatch(setMessages([]));
-                            setIsMobileMenuOpen(false);
+        // toast(`Are you sure you want to delete all chats and messages with 
+        //     ${selectedUser?.fullName || 'this user'}?`,{
+        //         description: 'This action cannot be undone. All messages will be permanently deleted.',
+        //         duration: 3000,
+        //         action: {
+        //             label: 'Delete',
+        //             onClick: async () => {
+        //                 try {
+        //                     dispatch(setLoading(true));
+        //                     await firebaseService.deleteChats(chatId);
+        //                     dispatch(deleteChats(chatId));
+        //                     dispatch(setSelectedUser(null));
+        //                     dispatch(setMessages([]));
+        //                     setIsMobileMenuOpen(false);
                             
-                            // Toast for successful delete
-                            toast.success(`Chat with ${selectedUser?.fullName || 'user'} deleted successfully!`, {
-                                duration: 3000,
-                            });
+        //                     // Toast for successful delete
+        //                     toast.success(`Chat with ${selectedUser?.fullName || 'user'} deleted successfully!`, {
+        //                         duration: 3000,
+        //                     });
 
-                        } catch (error) {
-                            console.error('Error deleting chat:', error);
-                            toast.error('Failed to delete chat. Please try again.', {
-                                duration: 3000,
-                            });
-                        } finally {
-                            dispatch(setLoading(false));
-                        }
-                    },
-                },
-                cancel: {
-                    label: 'Cancel',
-                    onClick: () => {
-                        setIsMobileMenuOpen(false);
-                    },
-                },
-            }
-        );
+        //                 } catch (error) {
+        //                     console.error('Error deleting chat:', error);
+        //                     toast.error('Failed to delete chat. Please try again.', {
+        //                         duration: 3000,
+        //                     });
+        //                 } finally {
+        //                     dispatch(setLoading(false));
+        //                 }
+        //             },
+        //         },
+        //         cancel: {
+        //             label: 'Cancel',
+        //             onClick: () => {
+        //                 setIsMobileMenuOpen(false);
+        //             },
+        //         },
+        //     }
+        // );
+
+        console.log("Selected User Chat Deleted",)
     };
 
 
@@ -379,7 +386,7 @@ function Chatbox({ onBack }) {
                                     <button className="flex items-center gap-3 w-full px-4 py-3 text-left 
                                     hover:bg-red-50 transition-colors text-red-600" onClick={handleDeleteSelectedUserChats}>
                                         <RiDeleteBinLine className="text-red-500 text-lg" />
-                                        {selectedUser ? `Delete ${selectedUser.fullName || 'User'}` : 'Delete User'}
+                                        {selectedUser ? `Delete ${selectedUser.fullname || 'User'}` : 'Delete User'}
                                     </button></li>
                             </ul>
                         </div>
@@ -410,7 +417,7 @@ function Chatbox({ onBack }) {
                                                             className={`bg-white p-3 rounded-lg shadow-sm message-content ${!msg.isOptimistic ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
                                                             onClick={!msg.isOptimistic ? (e) => handleMessageClick(msg.id, e) : undefined}
                                                         >
-                                                            <p className='text-sm'>{msg.text || ''}</p>
+                                                            <p className='text-md'>{msg.text || ''}<span className='ml-2 mt-10 text-[12px]'>{formatTimestamp(msg.timestamp)}</span></p>
                                                         </div>
                                                         
                                                         {/* Edit/Delete Actions for sender's messages */}
@@ -434,7 +441,7 @@ function Chatbox({ onBack }) {
                                                         )}
                                                         
                                                         <p className="text-gray-400 text-xs mt-1 text-right">
-                                                            {msg.isOptimistic ? 'Sending...' : formatTimestamp(msg.timestamp)}
+                                                            {/* {msg.isOptimistic ? '' : formatTimestamp(msg.timestamp)} */}
                                                             {msg.edited && <span className="ml-1 text-gray-500">(edited)</span>}
                                                         </p>
                                                     </div>
@@ -450,10 +457,10 @@ function Chatbox({ onBack }) {
                                                     />
                                                     <div className="relative">
                                                         <div className="bg-white p-3 rounded-lg shadow-sm message-content">
-                                                            <p className='text-sm'>{msg.text || ''}</p>
+                                                            <p className='text-md'>{msg.text || ''}<span className='ml-2 mt-10 text-[12px]'>{formatTimestamp(msg.timestamp)}</span></p>
                                                         </div>
                                                         <p className="text-gray-400 text-xs mt-1">
-                                                            {formatTimestamp(msg.timestamp)}
+                                                            {/* {formatTimestamp(msg.timestamp)} */}
                                                             {msg.edited && <span className="ml-1 text-gray-500">(edited)</span>}
                                                         </p>
                                                     </div>
@@ -478,7 +485,7 @@ function Chatbox({ onBack }) {
                             value={messageText}
                             onChange={(e) => setMessageText(e.target.value)}
                             placeholder={editingMessage ? 'Edit your message...' : (loading ? 'Sending message...' : 'Write Your Message....')}
-                            className='h-full text-[#2A3D39] outline-none text-base pl-3 pr-[50px] rounded-lg w-full disabled:opacity-50'
+                            className='h-full text-[#2A3D39] outline-none text-base pl-3 pr-[50px] rounded-lg w-[98%] disabled:opacity-50'
                             disabled={loading}
                         />
                         <div className="absolute right-5 flex gap-1">
