@@ -55,9 +55,9 @@ export const useFirebaseData = (currentUser) => {
           });
         }
 
-        // unsubscribeChats = firebaseService.listenForChats((newChats) => {
-        //   dispatch(setChats(newChats || []));
-        // });
+        unsubscribeChats = firebaseService.listenForChats((newChats) => {
+          dispatch(setChats(newChats || []));
+        });
 
       } catch (error) {
         console.error('Error initializing:', error);

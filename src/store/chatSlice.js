@@ -50,10 +50,32 @@ const chatSlice = createSlice({
         setAllUsers: (state,action) => {
             state.allUsers = action.payload;
         },
+        // In chatSlice.js, update the setChats reducer:
         setChats: (state, action) => {
             // Convert ALL timestamps in chats and nested objects
-            state.chats = action.payload.map(chat => convertAllTimestamps(chat));
+            const normalizedChats = action.payload.map(chat => {
+                // Create user object from chat.otherUser if it exists
+                const userData = chat.otherUser ? {
+                uid: chat.otherUser.uid,
+                email: chat.otherUser.email,
+                username: chat.otherUser.username,
+                fullName: chat.otherUser.fullName || chat.otherUser.fullname || "",
+                image: chat.otherUser.image || ""
+                } : null;
+                
+                return {
+                id: chat.id,
+                lastMessage: chat.lastMessage || chat.lastmessage || "",
+                lastMessageTimestamp: chat.lastMessageTimestamp || chat.lastmessagetimestamp,
+                // Store user as an object (not array)
+                user: userData
+                };
+            });
+
+            //console.log('Normalized chats in Redux:', normalizedChats); // Debug log
+            state.chats = normalizedChats;
         },
+
         // Del Chats Functionallity
         // In chatSlice.js - make sure this is correct
         deleteChats: (state, action) => {

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { SaudiRiyal } from "lucide-react";
 
 class SupabaseService {
   constructor() {
@@ -307,7 +308,7 @@ class SupabaseService {
         .single();
 
       // If chat doesn't exist, create it
-      if (chatError && chatError.code === 'PGRST116') {
+      if ((chatError && chatError.code === 'PGRST116') || !existingChat) {
         // Create new chat
         const { error: insertChatError } = await supabase
           .from('chats')
@@ -324,7 +325,7 @@ class SupabaseService {
           throw insertChatError;
         }
 
-      } else if (!chatError && existingChat) {
+      } else {
         // Update existing chat
         const { error: updateError } = await supabase
           .from('chats')
@@ -338,12 +339,7 @@ class SupabaseService {
           console.error('Error updating chat:', updateError);
           throw updateError;
         }
-      } else {
-        // Handle other errors
-        if (chatError) {
-          console.error('Error checking chat existence:', chatError);
-          throw chatError;
-        }
+
       }
 
       // Send message
@@ -369,7 +365,7 @@ class SupabaseService {
       console.error("Error sending message:", error);
       throw error;
     }
-}
+  }
 
   listenForMessages(chatId, callback) {
     
@@ -439,7 +435,142 @@ class SupabaseService {
     }
   }
 
-  // Helper Methods
+  // ============ Chats ============
+  listenForChats(callback) {
+    const supabase = this.init();
+
+    // Get Initial Data
+    this.getUserChats().then(callback)
+
+    const channel = supabase
+      .channel('user-chats')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chats'
+        },
+        async () => {
+          const chats = await this.getUserChats()
+          callback(chats)
+        }
+      )
+      .subscribe()
+
+      const unsubscribe = () => {
+        supabase.removeChannel(channel)
+        this.subscriptions.delete('user-chats')
+      }
+
+      this.subscriptions.set('user-chats', unsubscribe)
+      
+      return unsubscribe;
+
+  }
+
+  async getUserChats() {
+    try {
+      
+      const supabase = this.init()
+      
+      const currentUser = await this.getCurrentUser()
+
+      if(!currentUser || !currentUser.id) {
+        console.log('No current user or email found');
+        return [];
+      }
+
+      // Get User Email
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('uid', currentUser.id)
+        .single()
+
+      if(!userData) {
+        console.log('No user data found for UID:', currentUser.id);
+        return [];
+      }
+
+      const userEmail = userData.email
+
+      // Get chats where user is user1 or user2
+      const { data: chats, error } = await supabase
+        .from('chats')
+        .select('*')
+        .or(`user1email.eq.${userEmail},user2email.eq.${userEmail}`) 
+        .order('lastmessagetimestamp', { ascending: false })
+
+      if(error) {
+        console.error('Error Fetching Chats', error)
+        throw error
+      }
+
+      console.log('Chats found:', chats);
+      
+      if(!chats || chats.length === 0) {
+        console.log('There Is NO Any Chats');
+        return []
+      }
+
+      // Get user detail for each chat
+      const chatsWithUsers = await Promise.all(
+        chats.map(async (chat) => {
+          
+          // Determine which user is the other user
+          const otherUserEmail = chat.user1email === userEmail ? chat.user2email : chat.user1email;
+          
+          const { data: otherUser } = await supabase
+            .from('users')
+            .select("*")
+            .eq('email', otherUserEmail)
+            .single()
+
+          if (!otherUser) {
+            console.warn(`No user found for email: ${otherUserEmail}`);
+            return null;
+          }
+
+          // Return normalized chat object WITH user data
+          return {
+            id: chat.id,
+            lastMessage: chat.lastmessage || "",
+            lastMessageTimestamp: chat.lastmessagetimestamp,
+            // Include the other user as part of the chat object
+            otherUser: {
+              uid: otherUser.uid,
+              email: otherUser.email,
+              username: otherUser.username,
+              fullName: otherUser.fullname,
+              image: otherUser.image
+            }
+          };
+
+        })
+      )
+
+      // Filter out any null results
+      const filteredChats = chatsWithUsers.filter(chat => chat !== null);
+      //console.log('Final formatted chats:', filteredChats); // Debug log
+      return filteredChats;
+
+      // return chats.map(chat => ({
+      //   id: chat.id,
+      //   lastmessage: chat.lastmessage,
+      //   lastmessagetimestamp: chat.lastmessagetimestamp, 
+      //   user1email: chat.user1email,
+      //   user2email: chat.user2email
+      // }))
+
+    } catch (error) {
+      console.error("Error getting user chats:", error);
+      //throw error;
+      return []
+    }
+  }
+
+  // ============ Helper Methods ============
   async getCurrentUser() {
     const supabase = this.init();
     const { data: { user } } = await supabase.auth.getUser();

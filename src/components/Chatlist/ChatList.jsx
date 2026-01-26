@@ -38,17 +38,28 @@ function Chatlist() {
   const { getOtherUserFromChat, getChatIdForUser } = useChatUtils(currentUser);
   useFirebaseData(currentUser);
 
-  // Sort chats by timestamp
+  // Sort chats by timestamp - now using camelCase properties
   const sortedChats = useMemo(() => {
     if (!Array.isArray(chats)) return [];
     return [...chats].sort((a, b) => {
-      const aTime = a.lastMessageTimestamp?.seconds || 0;
-      const bTime = b.lastMessageTimestamp?.seconds || 0;
+      const getTime = (timestamp) => {
+        if (!timestamp) return 0;
+        if (typeof timestamp === 'string') {
+          return new Date(timestamp).getTime();
+        }
+        if (timestamp && typeof timestamp === 'object' && timestamp.seconds) {
+          return timestamp.seconds * 1000;
+        }
+        return 0;
+      };
+      
+      const aTime = getTime(a.lastMessageTimestamp);
+      const bTime = getTime(b.lastMessageTimestamp);
       return bTime - aTime;
     });
   }, [chats]);
 
-  // Create a map of user IDs to their chat data
+  // Create a map of user IDs to their chat data - using camelCase
   const userToChatMap = useMemo(() => {
     const map = new Map();
     sortedChats.forEach(chat => {
@@ -64,7 +75,7 @@ function Chatlist() {
     return map;
   }, [sortedChats, getOtherUserFromChat]);
 
-  // Memoized search results
+  // Memoized search results - using camelCase
   const searchResults = useMemo(() => {
     if (!searchTerm.trim()) return [];
     
@@ -76,12 +87,15 @@ function Chatlist() {
       
       return username.includes(normalizedSearchTerm) ||
              fullName.includes(normalizedSearchTerm);
-
     }).map(user => {
       const chatData = userToChatMap.get(user.uid);
-      return chatData ? { ...user, ...chatData } : user;
-    })
-
+      return chatData ? { 
+        ...user, 
+        chatId: chatData.chatId,
+        lastMessage: chatData.lastMessage,
+        lastMessageTimestamp: chatData.lastMessageTimestamp
+      } : user;
+    });
   }, [searchTerm, allUsers, userToChatMap]);
 
   // Handle search from FilterSection
@@ -98,13 +112,12 @@ function Chatlist() {
     setSearchTerm(typeof searchValue === 'string' ? searchValue : "");
   }, [dispatch]);
 
-  // Prepare users list
+  // Prepare users list - using camelCase properties
   const usersToDisplay = useMemo(() => {
-
     if (searchTerm.trim()) {
-    
+
       return searchResults.sort((a, b) => {
-    
+
         const aHasChat = !!a.chatId;
         const bHasChat = !!b.chatId;
         
@@ -114,8 +127,20 @@ function Chatlist() {
         
         // If both have chats, sort by most recent message
         if (aHasChat && bHasChat) {
-          const aTime = a.lastMessageTimestamp?.seconds || 0;
-          const bTime = b.lastMessageTimestamp?.seconds || 0;
+          const getTime = (timestamp) => {
+            if (!timestamp) return 0;
+            if (typeof timestamp === 'string') {
+              return new Date(timestamp).getTime();
+            }
+            if (timestamp && typeof timestamp === 'object' && timestamp.seconds) {
+              return timestamp.seconds * 1000;
+            }
+            return 0;
+          };
+          
+          const aTime = getTime(a.lastMessageTimestamp);
+          const bTime = getTime(b.lastMessageTimestamp);
+        
           return bTime - aTime;
         }
         
@@ -125,8 +150,11 @@ function Chatlist() {
     }
 
     if (showOnlyChats) {
+
       return sortedChats.map(chat => {
+      
         const otherUser = getOtherUserFromChat(chat);
+      
         if (!otherUser) return null;
         return {
           ...otherUser,
@@ -134,31 +162,46 @@ function Chatlist() {
           lastMessage: chat.lastMessage || "",
           lastMessageTimestamp: chat.lastMessageTimestamp
         };
+    
       }).filter(Boolean);
+    
     }
     
     return allUsers.map(user => {
-    
       const chatData = userToChatMap.get(user.uid);
-      return chatData ? { ...user, ...chatData } : user;
-    
+      return chatData ? { 
+        ...user, 
+        chatId: chatData.chatId,
+        lastMessage: chatData.lastMessage,
+        lastMessageTimestamp: chatData.lastMessageTimestamp
+      } : user;
     }).sort((a, b) => {
-    
       const aHasChat = !!a.chatId;
       const bHasChat = !!b.chatId;
-    
+      
       if (aHasChat && !bHasChat) return -1;
       if (!aHasChat && bHasChat) return 1;
+      
       if (aHasChat && bHasChat) {
-        const aTime = a.lastMessageTimestamp?.seconds || 0;
-        const bTime = b.lastMessageTimestamp?.seconds || 0;
+        const getTime = (timestamp) => {
+          if (!timestamp) return 0;
+          if (typeof timestamp === 'string') {
+            return new Date(timestamp).getTime();
+          }
+          if (timestamp && typeof timestamp === 'object' && timestamp.seconds) {
+            return timestamp.seconds * 1000;
+          }
+          return 0;
+        };
+        
+        const aTime = getTime(a.lastMessageTimestamp);
+        const bTime = getTime(b.lastMessageTimestamp);
         return bTime - aTime;
       }
-    
+      
       return (a.fullName || "").localeCompare(b.fullName || "");
-    
     });
-  
+    
   }, [showOnlyChats, sortedChats, allUsers, userToChatMap, getOtherUserFromChat, searchTerm, searchResults]);
     
   // Start chat for user selection
@@ -307,7 +350,7 @@ function Chatlist() {
           usersCount={usersToDisplay.length}
           onToggleFilter={() => setShowOnlyChats(prev => !prev)}
           onSearch={handleSearch}
-          searchTerm={searchTerm} // Pass current search term to FilterSection
+          searchTerm={searchTerm}
           isSearching={false}
         />
 
