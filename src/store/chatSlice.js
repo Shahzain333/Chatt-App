@@ -1,6 +1,4 @@
 import { createSlice } from '@reduxjs/toolkit'
-import { selectAuth } from './authSlice';
-import Chatlist from '../components/Chatlist/ChatList';
 
 // Helper function to convert Firebase timestamps to plain objects
 const convertTimestamp = (timestamp) => {
@@ -75,13 +73,11 @@ const chatSlice = createSlice({
             //console.log('Normalized chats in Redux:', normalizedChats); // Debug log
             state.chats = normalizedChats;
         },
-
         // Del Chats Functionallity
-        // In chatSlice.js - make sure this is correct
         deleteChats: (state, action) => {
             const chatId = action.payload;
             
-            // FIX: Remove chat with this ID (use !== not ===)
+            // Remove chat with this ID (use !== not ===)
             state.chats = state.chats.filter(chat => chat.id !== chatId);
             
             // If the selected user is in the deleted chat, clear the selection
@@ -118,7 +114,7 @@ const chatSlice = createSlice({
                 // Update the message text and mark as edited
                 state.messages[messageIndex].text = newText;
                 state.messages[messageIndex].edited = true;
-                state.messages[messageIndex].editedAt = convertTimestamp(new Date());
+                state.messages[messageIndex].editedAt = new Date().toISOString();
                 
                 // Also update the chat's last message if this message is the last one
                 const lastMessage = state.messages[state.messages.length - 1];

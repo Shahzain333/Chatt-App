@@ -106,15 +106,15 @@ function Login() {
             if (authUser) {
                 try {
                     // AWAIT the user data properly
-                    const userData = await firebaseService.getUser(authUser.uid);
+                    const userData = await firebaseService.getUser(authUser.id);
                     
                     if (userData) {
                         dispatch(login({
-                            uid: authUser.uid,
-                            email: authUser.email,
-                            username: authUser.email?.split('@')[0] || '',
-                            fullName: userData.fullname || userData.fullName || '',
-                            image: userData.image || authUser.photoURL || ""
+                            uid: userData.uid,
+                            email: userData.email,
+                            username: userData.username || '',
+                            fullName: userData.fullname || '',
+                            image: userData.image || ""
                         }));
                     } else {
                         // Fallback with proper values
@@ -123,7 +123,7 @@ function Login() {
                             email: authUser.email,
                             username: authUser.email?.split('@')[0] || '',
                             fullName: authUser.fullname || authUser.user_metadata?.full_name || '',
-                            image: authUser.photoURL || ""
+                            image: authUser.user_metadata?.avatar_url || authUser.photoURL || ""
                         }));
                     }
                     

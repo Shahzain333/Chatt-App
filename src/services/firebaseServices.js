@@ -1,3 +1,4 @@
+import { ThemeProvider } from "@emotion/react";
 import { createClient } from "@supabase/supabase-js";
 import { SaudiRiyal } from "lucide-react";
 
@@ -32,7 +33,13 @@ class SupabaseService {
       // 1. Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
-        password
+        password, 
+        options: {
+          data: {
+            username: username,
+          }
+
+        }
       });
 
       if (authError) throw authError;
@@ -42,13 +49,14 @@ class SupabaseService {
         await this.addUser({
           uid: authData.user.id,
           email: authData.user.email,
-          username: username || email.split('@')[0],
+          username: email.split('@')[0],
           fullName: username || '',
           image: ""
         });
       }
 
       return authData;
+
     } catch (error) {
       console.error("Signup error:", error);
       throw error;
@@ -157,7 +165,9 @@ class SupabaseService {
         .single();
 
       if (error || !data) return null;
+      
       return data;
+
     } catch (error) {
       console.error("Error getting user:", error);
       return null;
@@ -435,6 +445,132 @@ class SupabaseService {
     }
   }
 
+  async updateMessage(chatId, messageId, newText) {
+    try {
+      
+      const supabase = await this.init();
+      const currentUser = await this.getCurrentUser();
+
+      if(!currentUser) {
+        throw new Error("User Not Authenticated!")
+      }
+
+      // Get Current User Email
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('uid', currentUser.id)
+        .single();
+      
+      if(!userData) {
+        throw new Error("User Data Not Found!")
+      }
+
+      // Update Message
+      const { error } = await supabase
+        .from('messages')
+        .update({
+          text: newText,
+          edited: true,
+          editedat: new Date().toISOString()
+        })
+        .eq('id', messageId)
+        .eq('sender', userData.email)
+
+      if(error) throw error
+
+      // Update chat's last message if this was latest
+      await this.updateChatLastMessage(chatId);
+      //console.log("Update Message !")
+
+    } catch (error) {
+      console.log('Error in Update Message', error)
+      throw error
+    }
+  }
+
+  async deleteMessage(chatId, messageId) {
+    try {
+      const supabase = this.init()
+      const currentUser = await this.getCurrentUser()
+
+      if(!currentUser) {
+        throw new Error('User not authenticated')
+      }
+
+      // Get CUrrent User Email
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('uid', currentUser.id)
+        .single();
+      
+      if(!userData) {
+        throw new Error("User data not found!")
+      }
+
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId)
+        .eq('sender', userData.email)
+      
+      if (error) throw error;
+
+      // Update chat's last message
+      await this.updateChatLastMessage(chatId);
+
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      throw error;
+    }
+  }
+
+  async updateChatLastMessage(chatId) {
+    try {
+
+      const supabase = this.init();
+
+      // Get Latest Message
+      const { data: latestMessage, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('chatid', chatId)
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .single()
+      
+      
+      if (error && error.code !== 'PGRST116') {
+        console.log("No Message In Chat")
+        // Update Chat With Empty Last Mesaage
+        await supabase
+          .from('chats')
+          .update({
+            lastmessage: null,
+            lastmessagetimestamp: null
+          })
+          .eq('id',chatId)
+        
+        return
+
+      }
+
+      // Update chat with latest message
+      await supabase
+        .from('chats')
+        .update({
+          lastmessage: latestMessage?.text || null,
+          lastmessagetimestamp: latestMessage?.timestamp || null
+        })
+        .eq('id', chatId);
+
+    } catch (error) {
+      console.log("Error updating chat last message:", error);
+      throw Error
+    }
+  }
+
   // ============ Chats ============
   listenForChats(callback) {
     const supabase = this.init();
@@ -567,6 +703,55 @@ class SupabaseService {
       console.error("Error getting user chats:", error);
       //throw error;
       return []
+    }
+  }
+
+  async deleteChats(chatId) {
+    try {
+      
+      const supabase = this.init()
+      const currentUser = await this.getCurrentUser()
+
+      if(!currentUser) {
+        throw new Error("User not authenticated")
+      }
+
+      // Get user email
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('uid', currentUser.id)
+        .single()
+      
+      if(!userData) {
+        throw new Error("User data not found");
+      }
+
+      const userEmail = userData.email
+
+      // Check if user is in chat
+      const { error: chatError } = await supabase
+        .from('chats')
+        .select('*')
+        .eq('id', chatId)
+        .or(`user1email.eq.${userEmail},user2email.eq.${userEmail}`)
+        .single();
+      
+      if(chatError) {
+        throw new Error("Chat not found or not authorized");
+      }
+
+      // Delete chat (messages will cascade delete)
+      const { error } = await supabase
+        .from('chats')
+        .delete()
+        .eq('id', chatId);
+
+      if (error) throw error;
+
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+      throw error;
     }
   }
 
