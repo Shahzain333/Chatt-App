@@ -285,7 +285,6 @@ function Chatbox({ onBack }) {
         console.log("Selected User Chat Deleted",)
     };
 
-
     // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (e) => {

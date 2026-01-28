@@ -99,48 +99,48 @@ function Login() {
         }
     }
 
-    useEffect(() => {
+    // useEffect(() => {
 
-        const unsubscribe = firebaseService.onAuthStateChange(async (authUser) => {
+    //     const unsubscribe = firebaseService.onAuthStateChange(async (authUser) => {
 
-            if (authUser) {
-                try {
-                    // AWAIT the user data properly
-                    const userData = await firebaseService.getUser(authUser.id);
+    //         if (authUser) {
+    //             try {
+    //                 // AWAIT the user data properly
+    //                 const userData = await firebaseService.getUser(authUser.id);
                     
-                    if (userData) {
-                        dispatch(login({
-                            uid: userData.uid,
-                            email: userData.email,
-                            username: userData.username || '',
-                            fullName: userData.fullname || '',
-                            image: userData.image || ""
-                        }));
-                    } else {
-                        // Fallback with proper values
-                        dispatch(login({
-                            uid: authUser.id,
-                            email: authUser.email,
-                            username: authUser.email?.split('@')[0] || '',
-                            fullName: authUser.fullname || authUser.user_metadata?.full_name || '',
-                            image: authUser.user_metadata?.avatar_url || authUser.photoURL || ""
-                        }));
-                    }
+    //                 if (userData) {
+    //                     dispatch(login({
+    //                         uid: userData.uid,
+    //                         email: userData.email,
+    //                         username: userData.username || '',
+    //                         fullName: userData.fullname || '',
+    //                         image: userData.image || ""
+    //                     }));
+    //                 } else {
+    //                     // Fallback with proper values
+    //                     dispatch(login({
+    //                         uid: authUser.id,
+    //                         email: authUser.email,
+    //                         username: authUser.email?.split('@')[0] || '',
+    //                         fullName: authUser.fullname || authUser.user_metadata?.full_name || '',
+    //                         image: authUser.user_metadata?.avatar_url || authUser.photoURL || ""
+    //                     }));
+    //                 }
                     
-                } catch (error) {
-                    console.error("Error fetching user data:", error);
-                    dispatch(setError('Failed to load user profile'));
-                }
+    //             } catch (error) {
+    //                 console.error("Error fetching user data:", error);
+    //                 dispatch(setError('Failed to load user profile'));
+    //             }
             
-            } else {
-                dispatch(logout());
-            }
+    //         } else {
+    //             dispatch(logout());
+    //         }
         
-        });
+    //     });
 
-    return () => unsubscribe();
+    // return () => unsubscribe();
     
-    }, [dispatch])
+    // }, [dispatch])
 
     return (
         <div>

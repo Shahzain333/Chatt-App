@@ -83,18 +83,18 @@ function Signup() {
             // Wait for user data to be created in supabase
             await new Promise(resolve => setTimeout(resolve, 2000)) // small delay
 
-            const userData = await firebaseService.getUser(userCredential.user.uid)
+            const userData = await firebaseService.getUser(userCredential.user.id)
 
-            // if (!userData) {
-            //     toast.error('User data not found in database')
-            // }
+            if (!userData) {
+                toast.error('User data not found in database')
+            }
 
             dispatch(login({
-                uid: userCredential.user.uid,
-                email: userCredential.user.email,
-                username: userCredential.user.email.split('@')[0],
-                fullName: formData?.username,
-                image: ""
+                uid: userData.uid,
+                email: userData.email,
+                username: userData.username,
+                fullName: userData.fullname || formData.username,
+                image: userData.image
             }))
             
             // Navigate after Redux state is updated

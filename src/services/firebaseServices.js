@@ -6,6 +6,7 @@ class SupabaseService {
   constructor() {
     this.supabase = null;
     this.subscriptions = new Map();
+    this.isInitialized = false
   }
 
   init() {
@@ -17,10 +18,22 @@ class SupabaseService {
       import.meta.env.VITE_SUPABASE_ANON_KEY,
       { 
         auth: { 
-          persistSession: true 
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
         } 
       }
     );
+
+    // Check for existing session immediately
+    if (!this.isInitialized) {
+      const { data: session } = this.supabase.auth.getSession();
+      if (session) {
+        // Session exists on init
+        console.log("Existing session found on init");
+      }
+      this.isInitialized = true;
+    }
 
     return this.supabase;
   }
@@ -542,12 +555,12 @@ class SupabaseService {
       
       
       if (error && error.code !== 'PGRST116') {
-        console.log("No Message In Chat")
+        //console.log("No Message In Chat")
         // Update Chat With Empty Last Mesaage
         await supabase
           .from('chats')
           .update({
-            lastmessage: null,
+            lastmessage: '',
             lastmessagetimestamp: null
           })
           .eq('id',chatId)
@@ -560,8 +573,10 @@ class SupabaseService {
       await supabase
         .from('chats')
         .update({
-          lastmessage: latestMessage?.text || null,
-          lastmessagetimestamp: latestMessage?.timestamp || null
+          lastmessage: latestMessage?.text || '',
+          lastmessagetimestamp: latestMessage?.timestamp || null,
+          edited: true,
+          editedat: new Date().toISOString()
         })
         .eq('id', chatId);
 
@@ -643,10 +658,10 @@ class SupabaseService {
         throw error
       }
 
-      console.log('Chats found:', chats);
+      //console.log('Chats found:', chats);
       
       if(!chats || chats.length === 0) {
-        console.log('There Is NO Any Chats');
+        //console.log('There Is NO Any Chats');
         return []
       }
 
@@ -756,6 +771,13 @@ class SupabaseService {
   }
 
   // ============ Helper Methods ============
+
+  async getSession() {
+    const supabase = this.init();
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
+  }
+
   async getCurrentUser() {
     const supabase = this.init();
     const { data: { user } } = await supabase.auth.getUser();

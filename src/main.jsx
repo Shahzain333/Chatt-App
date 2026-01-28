@@ -5,6 +5,7 @@ import './index.css'
 import { Provider } from 'react-redux'
 import { store } from './store/store.js' 
 import App from './App.jsx'
+import { AuthProvider } from './components/AuthProvider.jsx' 
 // Import pages
 import Layout from './Layout.jsx'
 import SignupPage from './pages/Login&Signup/SignUpPage.jsx'
@@ -26,6 +27,8 @@ const router = createBrowserRouter(
 
 createRoot(document.getElementById('root')).render(
   <Provider store={store}>
-    <RouterProvider router={router} />
+    <AuthProvider>
+       <RouterProvider router={router} />
+    </AuthProvider>
   </Provider>,
 )
