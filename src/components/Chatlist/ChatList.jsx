@@ -6,7 +6,7 @@ import {
   setSelectedUser, 
   setLoading, 
   deleteChats, 
-  setMessages 
+  setMessages,
 } from "../../store/chatSlice";
 
 // Import components
@@ -231,9 +231,11 @@ function Chatlist() {
         label: 'Delete',
         onClick: async () => {
           try {
+            
             dispatch(setLoading(true));
-            await firebaseService.deleteChats(chatId);
             dispatch(deleteChats(chatId));
+            await firebaseService.deleteChats(chatId);
+            dispatch(setLoading(false));
             
             if (selectedUser?.uid === user.uid) {
               dispatch(setSelectedUser(null));

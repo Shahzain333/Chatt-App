@@ -48,32 +48,34 @@ const chatSlice = createSlice({
         setAllUsers: (state,action) => {
             state.allUsers = action.payload;
         },
-        // In chatSlice.js, update the setChats reducer:
+        // set Chats Functionallity
         setChats: (state, action) => {
+
             // Convert ALL timestamps in chats and nested objects
             const normalizedChats = action.payload.map(chat => {
                 // Create user object from chat.otherUser if it exists
                 const userData = chat.otherUser ? {
-                uid: chat.otherUser.uid,
-                email: chat.otherUser.email,
-                username: chat.otherUser.username,
-                fullName: chat.otherUser.fullName || chat.otherUser.fullname || "",
-                image: chat.otherUser.image || ""
+                    uid: chat.otherUser.uid,
+                    email: chat.otherUser.email,
+                    username: chat.otherUser.username,
+                    fullName: chat.otherUser.fullName || chat.otherUser.fullname || "",
+                    image: chat.otherUser.image || ""
                 } : null;
                 
                 return {
-                id: chat.id,
-                lastMessage: chat.lastMessage || chat.lastmessage || "",
-                lastMessageTimestamp: chat.lastMessageTimestamp || chat.lastmessagetimestamp,
-                // Store user as an object (not array)
-                user: userData
+                    id: chat.id,
+                    lastMessage: chat.lastMessage || chat.lastmessage || "",
+                    lastMessageTimestamp: chat.lastMessageTimestamp || chat.lastmessagetimestamp,
+                    // Store user as an object (not array)
+                    user: userData
                 };
+
             });
 
             //console.log('Normalized chats in Redux:', normalizedChats); // Debug log
             state.chats = normalizedChats;
         },
-        // Del Chats Functionallity
+        // Delete Chats Functionallity
         deleteChats: (state, action) => {
             const chatId = action.payload;
             
@@ -92,11 +94,12 @@ const chatSlice = createSlice({
                 }
             }
         },
+        // set Messages Functionallity
         setMessages: (state, action) => {
             // Convert ALL timestamps in messages
             state.messages = action.payload.map(message => convertAllTimestamps(message));
         },
-        // ADD message functionality
+        // Add message functionality
         addMessage: (state, action) => {
             // Convert timestamp for single message
             const convertedMessage = convertAllTimestamps(action.payload);
@@ -145,6 +148,7 @@ const chatSlice = createSlice({
             
             // Update chat's last message if the deleted message was the last one
             if (messageToDelete) {
+
                 const isLastMessage = state.messages.length === 0 || 
                     !state.messages.some(msg => 
                         msg.timestamp?.seconds > (messageToDelete.timestamp?.seconds || 0)
@@ -175,13 +179,7 @@ const chatSlice = createSlice({
                     }
                 }
             }
-        },
-        // Remove optimistic message (for failed sends)
-        removeOptimisticMessage: (state, action) => {
-            const tempMessageId = action.payload;
-            state.messages = state.messages.filter(msg => 
-                !(msg.id === tempMessageId && msg.isOptimistic)
-            );
+
         },
         setSelectedUser: (state, action) => {
             state.selectedUser = convertAllTimestamps(action.payload);
