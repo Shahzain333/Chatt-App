@@ -40,6 +40,7 @@ export const useFirebaseData = (currentUser) => {
 
   // Initialize user and chats listeners
   useEffect(() => {
+    
     let unsubscribeUser = () => {};
     let unsubscribeChats = () => {};
 

@@ -1,6 +1,4 @@
-import { ThemeProvider } from "@emotion/react";
 import { createClient } from "@supabase/supabase-js";
-import { SaudiRiyal } from "lucide-react";
 
 class SupabaseService {
   constructor() {

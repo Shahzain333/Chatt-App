@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import defaultAvatar from '../assets/default.jpg';
 import { RiSendPlaneFill, RiArrowLeftLine, RiEditLine, RiDeleteBinLine, 
-    RiCheckLine, RiCloseLine, RiMore2Fill } from 'react-icons/ri';
+    RiCheckLine, RiCloseLine, RiMore2Fill, RiImageAddLine, RiVideoLine, 
+    RiMusicLine, RiFileTextLine, RiAttachmentLine, 
+    RiDownloadLine} from 'react-icons/ri';
 import Logo from '../assets/logo.png';
 import { formatTimestamp } from '../utils/formatTimestamp';
 import firebaseService from '../services/firebaseServices';
@@ -26,8 +28,19 @@ function Chatbox({ onBack }) {
     const [activeMessageId, setActiveMessageId] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSending, setIsSending] = useState(false);
+
+    const [attachments, setAttachments] = useState([])
+    const [showAttachmentOptions, setShowAttachmentOptions] = useState(false);
+    const [previewImage, setPreviewImage] = useState(null);
+    const [uploadProgress, setUploadProgress] = useState({});
+    const [selectedMessageForView, setSelectedMessageForView] = useState(null);
+    const [playingAudio, setPlayingAudio] = useState(null);
+    const [fullscreenImage, setFullscreenImage] = useState(null);
     
     const scrollRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const attachmentMenuRef = useRef(null);
+    const audioRefs = useRef({})
     
     const dispatch = useDispatch();
     const { messages, selectedUser, loading } = useSelector(state => state.chat);
@@ -45,7 +58,13 @@ function Chatbox({ onBack }) {
         if (chatId && selectedUser) {
             dispatch(setLoading(true));
             const unsubscribe = firebaseService.listenForMessages(chatId, (newMessages) => {
-                dispatch(setMessages(newMessages || []));
+                // Parse attachments from JSON string
+                const parsedMessages = newMessages?.map(msg => ({
+                    ...msg,
+                    attachments: msg.attachments ? JSON.parse(msg.attachments) : []
+                })) || [];
+
+                dispatch(setMessages(parsedMessages));
                 dispatch(setLoading(false));
             });
             
@@ -74,8 +93,66 @@ function Chatbox({ onBack }) {
         setEditingMessage(null);
         setActiveMessageId(null);
         setIsSending(false);
+        setAttachments([])
+        setPreviewImage(null)
+        setUploadProgress({})
+        // Stop all audio when switching chats
+        Object.values(audioRefs.current).forEach(audio => {
+            if(audio) {
+                audio.pause()
+                audio.currentTime = 0
+            }
+        })
+        setPlayingAudio(null);
+
     }, [selectedUser?.uid]);
 
+    // Close menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            const menu = document.querySelector('.mobile-menu');
+            const menuButton = document.querySelector('.menu-button');
+
+            if (menu && menuButton && !menu.contains(e.target) && !menuButton.contains(e.target)) {
+                setIsMobileMenuOpen(false);
+            }
+
+            // Close attachment options
+            if(attachmentMenuRef.current && 
+                !attachmentMenuRef.current.contains(e.target) &&
+                !e.target.closet('attachment-button')) {
+                    setShowAttachmentOptions(false)
+            }
+
+        };
+
+        // Only add event listener when menu is open
+        // if (isMobileMenuOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        //}
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+
+    }, []);
+
+    // Close message actions when clicking outside
+    useEffect(() => {
+        const handleClickOutsideMessage = (e) => {
+            if (activeMessageId && !e.target.closest('.message-content') && !e.target.closest('.message-actions')) {
+                setActiveMessageId(null);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutsideMessage);
+        
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutsideMessage);
+        };
+    }, [activeMessageId]);
+
+    // Sorted Messages Function
     const sortedMessages = useMemo(() => {
         if (!messages || !Array.isArray(messages)) return [];
         
@@ -86,25 +163,151 @@ function Chatbox({ onBack }) {
         });
 
     }, [messages]);
+
+    // ===================== Filing Work =======================
+    const handleFileSelect = (e) => {
+        
+        const  files = Array.from(e.target.files)
+        const validFiles = []
+
+        files.forEach(file => {
+            // Check file size (max 100MB)
+            if(file.size > 100 * 1024 * 1024) {
+                toast.error(`File ${file.name} is too large (max 100MB)`)
+                return
+            }
+
+            // check file type
+            const fileType = file.type.split('/')[0]
+            
+            if(['image','video','audio'].includes(fileType) || file.type === 'application/pdf' ||
+                file.type === 'application/msword' ||
+                file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                    validFiles.push(file)
+            } else {
+                toast.error(`File type ${file.type} is not supported`);
+            }
+
+        })
+
+        if(validFiles.length > 0) {
+            setAttachments(prev => [...prev, ...validFiles])
+
+            // Preview first Image
+            const firstImage = validFiles.find(f => f.type.startsWith('image'))
+            if(firstImage) {
+                const reader = new FileReader()
+                reader.onload = (e) => setPreviewImage(e.target.result)
+                reader.readAsDataURL(firstImage)
+            }
+        }
+
+        e.target.value = ''
+
+    }
+
+    const removeAttachment = (index) => {
+        
+        setAttachments(prev => prev.filter((_, i) => i !== index))
+
+        // Update Preview if needed
+        if(attachments[index]?.type.startsWith('image')) {
+            
+            const nextImage = attachments.find((a,i) => i !== index && a.type.startsWith('image'))
+            
+            if(nextImage) {
+                const reader = new FileReader()
+                reader.onload = (e) => setPreviewImage(e.target.result)
+                reader.readAsDataURL(nextImage)
+            } else {
+                setPreviewImage(null)
+            }
+
+        }
+
+    }
+
+    const getFileIcon = (file) => {
+        if (file.type.startsWith('image')) return <RiImageAddLine className="text-blue-500" />;
+        if (file.type.startsWith('video')) return <RiVideoLine className="text-purple-500" />;
+        if (file.type.startsWith('audio')) return <RiMusicLine className="text-green-500" />;
+        if (file.type === 'application/pdf') return <RiFileTextLine className="text-red-500" />;
+        if (file.type?.includes('document') || file.type?.includes('word')) return <RiFileTextLine className="text-blue-600" />;
+        return <RiAttachmentLine className="text-gray-500" />;
+    } 
+
+    const formatFileSize = (bytes) => {
+        if(!bytes) return '0 B'
+        if(bytes < 1024) return bytes + ' B'
+        if(bytes < 1024 * 1024) return (bytes/ 1024).toFixed(1) + ' KB'
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB' 
+    }
     
     const handleMessage = async (e) => {
         e.preventDefault();
 
-        if (!messageText.trim() || !selectedUser?.uid || !currentUser?.uid || !chatId || isSending) {
+        if ((!messageText.trim() && attachments.length === 0 ) || !selectedUser?.uid || !currentUser?.uid || !chatId || isSending) {
             return;
         }
 
         try {
             setIsSending(true);
+            let uploadedAttachments = []
+
+            // Upload File if any
+            if(attachments.length > 0) {
+                for(let i = 0; i < attachments.length; i++) {
+                    
+                    const file = attachments[i];
+                    const progressKey = `${Date.now()}-${i}`
+
+                    setUploadProgress(prev => ({
+                        ...prev,
+                        [progressKey]: 0
+                    }))
+
+                }
+            }
+
+            try {
+                const uploadFile = await firebaseService.uploadFile(file, chatId, currentUser?.uid)
+                uploadedAttachments.push(uploadFile)
+
+                // upload progress to 100%
+                setUploadProgress(prev => ({
+                    ...prev,
+                    [progressKey]: 100
+                }))
+
+                // Remove progress after a delay
+                setTimeout(() => {
+                    setUploadProgress(prev => {
+                        const newProgress = { ...prev }
+                        delete newProgress[progressKey];
+                        return newProgress;
+                    })
+                }, 5000)
+
+            } catch (uploadError) {
+                console.error('Error uploading file:', uploadError);
+                toast.error(`Failed to upload ${file.name}`);
+                // Remove the failed progress
+                setUploadProgress(prev => {
+                    const newProgress = { ...prev };
+                    delete newProgress[progressKey];
+                    return newProgress;
+                });
+            }
             
             if (editingMessage) {
                 // Update existing message
-                await firebaseService.updateMessage(chatId, editingMessage.id, messageText.trim());
+                await firebaseService.updateMessage(chatId, editingMessage.id, messageText.trim(), uploadedAttachments);
                 
                 // Update in Redux for immediate UI
                 dispatch(updateMessage({
                     messageId: editingMessage.id,
-                    newText: messageText.trim()
+                    newText: messageText.trim(),
+                    attachments: uploadedAttachments
                 }));
                 
                 setEditingMessage(null);
@@ -114,12 +317,21 @@ function Chatbox({ onBack }) {
                 });
 
             } else {
-                // Send new message - optimistic update
+                // Send new message
+                await firebaseService.sendMessage(
+                    messageText.trim(), 
+                    chatId, 
+                    currentUser.uid, 
+                    selectedUser.uid,
+                    uploadedAttachments
+                );
+                
                 //const tempMessageId = `temp-${Date.now()}`;
                 const newMessage = {
                     id: chatId,
                     text: messageText.trim(),
                     sender: currentUser.email,
+                    attachments: uploadedAttachments,
                     timestamp: new Date().toISOString(),
                 };
 
@@ -137,29 +349,29 @@ function Chatbox({ onBack }) {
                 //     }
                 // };
                 
-                await firebaseService.sendMessage(
-                    messageText.trim(), 
-                    chatId, 
-                    currentUser.uid, 
-                    selectedUser.uid
-                );
-                
                 dispatch(addMessage(newMessage));
                 //dispatch(setChats(chatUpdate))
                 
-                toast.success('Message sent!', {
+                const successMessage = uploadedAttachments.length > 0 ? `${uploadedAttachments.length} 
+                file${uploadedAttachments.length > 1 ? 's' : ''} sent!` : 'Message sent!';
+
+                toast.success(successMessage, {
                     duration: 3000,
                 });
 
             }
             
+            // Clear form
             setMessageText('');
+            setAttachments([]);
+            setPreviewImage(null);
             
         } catch (error) {
             console.error("Error sending message:", error);
             toast.error('Failed to send message. Please try again.');
         } finally {
             setIsSending(false);
+            setUploadProgress({})
         }
     };
 
@@ -223,6 +435,21 @@ function Chatbox({ onBack }) {
         });
     };
 
+    const handleDownload = async (url, filename) =>{
+        try {
+            const link = document.createElement('a')
+            link.href = url
+            link.download = filename
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            toast.success('Download started')
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            toast.error('Failed to download file');
+        }
+    }
+
     const cancelEdit = () => {
         setEditingMessage(null);
         setMessageText('');
@@ -281,42 +508,132 @@ function Chatbox({ onBack }) {
         );
     };
 
-    // Close menu when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            const menu = document.querySelector('.mobile-menu');
-            const menuButton = document.querySelector('.menu-button');
+    // Toggle Audio Play
+    const toggleAudioPlay = (messageId, audioUrl) => {
 
-            if (menu && menuButton && !menu.contains(e.target) && !menuButton.contains(e.target)) {
-                setIsMobileMenuOpen(false);
+        const audioElement = audioRefs.current[messageId]
+
+        if(!audioElement) return
+
+        if(playingAudio === messageId) {
+            audioElement.pause()
+            setPlayingAudio(null)
+        } else {
+            // Stop currently playing audio
+            if(playingAudio) {
+                const currentAudio = audioRefs.current[playingAudio]
+
+                if(currentAudio) {
+                    currentAudio.pause()
+                    currentAudio.currentTime = 0
+                }
+
             }
-        };
 
-        // Only add event listener when menu is open
-        if (isMobileMenuOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
+            audioElement.play()
+            setPlayingAudio(messageId)
+
+            // Reset When Audio Ends
+            audioElement.onended = () => {
+                setPlayingAudio(null)
+            }
+
         }
 
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
+    }
 
-    }, [isMobileMenuOpen]);
-
-    // Close message actions when clicking outside
-    useEffect(() => {
-        const handleClickOutsideMessage = (e) => {
-            if (activeMessageId && !e.target.closest('.message-content') && !e.target.closest('.message-actions')) {
-                setActiveMessageId(null);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutsideMessage);
+    // Render message content with attachments
+    const renderMessageContent = (msg) => {
         
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutsideMessage);
-        };
-    }, [activeMessageId]);
+        const hasAttachment = msg.attachments && msg.attachments.length > 0
+
+        return (
+            <div className='space-y-2'>
+                {hasAttachment && (
+                    <div className='space-y-3'>
+                        {msg.attachments.map((attachment,index) => (
+                            <div key={index} className='relative'>
+                                
+                                {attachment.type === 'image' ? (
+                                    
+                                    <div className='relative group'>
+                                        <img src={attachment.url} alt={attachment.name} className="max-w-full rounded-lg cursor-pointer 
+                                            max-h-[300px] object-cover hover:opacity-95 transition-opacity" onClick={() => 
+                                            setSelectedMessageForView({ url: attachment.url, type: 'image'})}
+                                        />
+                                        <button onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleDownload(attachment.url, attachment.name)
+                                        }} className="absolute bottom-2 right-2 bg-black/70 hover:bg-black/90 text-white p-2 rounded-full 
+                                        opacity-0 group-hover:opacity-100 transition-all duration-200" title='Download'>
+                                            <RiDownloadLine/>
+                                        </button>
+                                    </div>
+
+                                ) : attachment.type === 'video' ? (
+                                    
+                                    <div className='relative rounded-lg overflow-hidden bg-black'>
+                                        <video className='max-w-full rounded-lg max-h-[300px]' controls
+                                            poster="https://images.unsplash.com/photo-1536240478700-b869070f9279?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80">
+                                                <source src={attachment.url} type='video/mp4'/>
+                                                Your browser does not support the video tag.
+                                        </video>
+                                        <button onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDownload(attachment.url, attachment.name);
+                                            }}
+                                            className="absolute bottom-2 right-2 bg-black/70 hover:bg-black/90 text-white p-2 rounded-full"
+                                            title="Download"
+                                        >
+                                            <RiDownloadLine />
+                                        </button>
+                                    </div>
+
+                                ) : attachment.type === 'audio' ? (
+                                    
+                                    <div className='bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg max-w-[300px]'>
+                                        <div className='flex items-center gap-3'>
+                                            
+                                            <div className="bg-blue-100 p-3 rounded-full">
+                                                <RiMusicLine className="text-blue-600 text-xl" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-gray-800 truncate">{attachment.name}</p>
+                                                <p className="text-xs text-gray-500">{formatFileSize(attachment.size)}</p>
+                                            </div>
+                                            <button onClick={() => toggleAudioPlay(msg.id + index, attachment.url)}
+                                            className="p-2 bg-blue-100 hover:bg-blue-200 rounded-full transition-colors">
+                                                { playingAudio === msg.id + index ? <RiPauseCircleLine className="text-blue-600 text-xl" /> : 
+                                                    <RiPlayCircleLine className="text-blue-600 text-xl" />
+                                                }
+                                            </button>
+                                            <button onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDownload(attachment.url, attachment.name);
+                                                }}
+                                                className="p-2 hover:bg-gray-200 rounded-full"
+                                                title="Download"
+                                            >
+                                                <RiDownloadLine className="text-gray-600" />
+                                            </button>
+                                        </div>
+
+                                        <audio ref={(el) => audioRefs.current[msg.id + index] = el} className="hidden" src={attachment.url}/>
+
+                                    </div>
+
+                                ) : (
+                                    <div></div>
+                                )}
+
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        )
+
+    }
 
     // Show loading state
     if (loading && messages.length === 0) {
@@ -494,6 +811,68 @@ function Chatbox({ onBack }) {
                     
                     <form onSubmit={handleMessage} className='flex items-center bg-green-200 
                     h-[55px] w-full px-2 rounded-lg relative shadow-lg'>
+
+                        {/* Hidden file input */}
+                        <input
+                           type='file'
+                           ref={fileInputRef}
+                           multiple
+                           accept='image/*,video/*,audio/*,.pdf'
+                           onChange={handleFileSelect}
+                           className='hidden'
+                        />
+
+                        {/* Attachment Button with Options Menu */}
+                        <div className='relative'>
+                            
+                            <button type='button' className='p-2 text-gray-600 hover:text-teal-600 transition-colors attachment-button'
+                            onClick={() => setShowAttachmentOptions(!showAttachmentOptions)} disabled={isSending}>
+                                <RiAttachmentLine className='text-xl'/>
+                            </button>
+
+                            {/* Attachment Options Menu */}
+                            {showAttachmentOptions && (
+                                <div ref={attachmentMenuRef} className='absolute bottom-14 left-0 bg-white border border-gray-200 rounded-lg 
+                                    shadow-xl z-50 py-2 min-w-[200px]'>
+
+                                    <button type='button' className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 
+                                    transition-colors' 
+                                    onClick={() => {
+                                        fileInputRef.current.click()
+                                        setShowAttachmentOptions(false)
+                                    }}>
+                                        <RiImageAddLine className='text-blue-500'/>
+                                        <span className='text-sm'>Photos & Videos</span>
+                                    </button>
+
+                                    <button type='button' className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 
+                                    transition-colors' 
+                                    onClick={() => {
+                                        fileInputRef.current.accept = '.pdf,.doc,.docx,.txt'
+                                        fileInputRef.current.click()
+                                        setShowAttachmentOptions(false)
+                                    }}>
+                                        <RiFileTextLine className='text-green-500'/>
+                                        <span className='text-sm'>Documents</span>
+                                    </button>
+
+                                    <button type='button' className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 
+                                    transition-colors' 
+                                    onClick={() => {
+                                        fileInputRef.current.accept = 'audio/*'
+                                        fileInputRef.current.click()
+                                        setShowAttachmentOptions(false)
+                                    }}>
+                                        <RiFileTextLine className='text-purple-500'/>
+                                        <span className='text-sm'>Audio</span>
+                                    </button>
+                                
+                                </div>
+                            
+                            )}
+
+                        </div>
+
                         <input 
                             type='text'
                             value={messageText}
@@ -531,6 +910,7 @@ function Chatbox({ onBack }) {
                                 )}
                             </button>
                         </div>
+
                     </form>
             
                 </div>
