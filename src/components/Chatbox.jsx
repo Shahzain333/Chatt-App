@@ -3,7 +3,10 @@ import defaultAvatar from '../assets/default.jpg';
 import { RiSendPlaneFill, RiArrowLeftLine, RiEditLine, RiDeleteBinLine, 
     RiCheckLine, RiCloseLine, RiMore2Fill, RiImageAddLine, RiVideoLine, 
     RiMusicLine, RiFileTextLine, RiAttachmentLine, 
-    RiDownloadLine} from 'react-icons/ri';
+    RiDownloadLine,
+    RiImageLine,
+    RiCloseCircleLine,
+    RiCloseCircleFill} from 'react-icons/ri';
 import Logo from '../assets/logo.png';
 import { formatTimestamp } from '../utils/formatTimestamp';
 import firebaseService from '../services/firebaseServices';
@@ -110,10 +113,16 @@ function Chatbox({ onBack }) {
     // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (e) => {
+
             const menu = document.querySelector('.mobile-menu');
             const menuButton = document.querySelector('.menu-button');
+            const attachmentButton = document.querySelector('.attachment-button');
 
             if (menu && menuButton && !menu.contains(e.target) && !menuButton.contains(e.target)) {
+                setIsMobileMenuOpen(false);
+            }
+
+            if(attachmentButton && !attachmentButton.contains(e.target)) {
                 setIsMobileMenuOpen(false);
             }
 
@@ -334,24 +343,9 @@ function Chatbox({ onBack }) {
                     attachments: uploadedAttachments,
                     timestamp: new Date().toISOString(),
                 };
-
-                // Create a chat update object
-                // const chatUpdate = {
-                //     id: chatId,
-                //     lastMessage: messageText.trim(),
-                //     lastMessageTimestamp: new Date().toISOString(),
-                //     otherUser: {
-                //         uid: selectedUser.uid,
-                //         email: selectedUser.email,
-                //         username: selectedUser.username,
-                //         fullName: selectedUser.fullname || selectedUser.fullName || "",
-                //         image: selectedUser.image || ""
-                //     }
-                // };
                 
                 dispatch(addMessage(newMessage));
-                //dispatch(setChats(chatUpdate))
-                
+               
                 const successMessage = uploadedAttachments.length > 0 ? `${uploadedAttachments.length} 
                 file${uploadedAttachments.length > 1 ? 's' : ''} sent!` : 'Message sent!';
 
@@ -435,6 +429,7 @@ function Chatbox({ onBack }) {
         });
     };
 
+    // Download File / Images
     const handleDownload = async (url, filename) =>{
         try {
             const link = document.createElement('a')
@@ -623,17 +618,48 @@ function Chatbox({ onBack }) {
                                     </div>
 
                                 ) : (
-                                    <div></div>
+                                    <div className='bg-gray-50 hover:bg-gray-100 p-4 rounded-lg max-w-[300px] border border-gray-200 
+                                    transition-colors cursor-pointer group'>
+                                        <div className='flex items-center gap-3'>
+                                            <div className={`p-3 rounded-lg ${
+                                                attachment.type === 'file' && attachment.mimeType === 'application/pdf' 
+                                                    ? 'bg-red-100' 
+                                                    : 'bg-blue-100'
+                                            }`}>
+                                                {getFileIcon(attachment)}
+                                            </div>
+                                            <div className='flex-1 min-w-0'>
+                                                <p className='text-sm font-medium text-gray-800 truncate'>
+                                                    {attachment.name}
+                                                </p>
+                                                <p className='text-xs text-gray-500'>{attachment.size}</p>
+                                            </div>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDownload(attachment.url, attachment.name);
+                                                }}
+                                                className="p-2 hover:bg-gray-200 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                title="Download"
+                                            >
+                                                <RiDownloadLine className="text-gray-600" />
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
 
                             </div>
                         ))}
                     </div>
                 )}
-            </div>
-        )
 
-    }
+                {msg.text && msg.text !== 'Photo' && msg.text !== 'Video' && msg.text !== 'Audio' && 
+                 msg.text !== 'File' && (
+                    <p className='text-sm text-gray-800 mt-2'>{msg.text}</p>
+                )}
+
+            </div>
+    )}
 
     // Show loading state
     if (loading && messages.length === 0) {
@@ -718,6 +744,7 @@ function Chatbox({ onBack }) {
                 )}
             </header>
 
+            {/* Main Chat Area */}
             <main className='flex flex-col flex-1 w-full overflow-hidden'>
                 
                 <section className='flex-1 overflow-hidden px-3 pt-5'>
@@ -725,6 +752,7 @@ function Chatbox({ onBack }) {
                     <div ref={scrollRef} className='h-full overflow-y-auto custom-scrollbar'>
                         
                         <div className='min-h-full flex flex-col justify-end'>
+                           
                             {sortedMessages.length === 0 ? (
                                 <div className="flex-1 flex items-center justify-center text-gray-500 py-8">
                                     <p>No messages yet. Start the conversation!</p>
@@ -734,10 +762,10 @@ function Chatbox({ onBack }) {
                                     <div key={msg.id || `msg-${index}`} className="mb-4 relative">
                                         {msg.sender === currentUser?.email ? (
                                             <div className="flex flex-col items-end w-full">
-                                                <div className="flex gap-3 me-5 max-w-[80%]">
+                                                <div className="flex gap-3 me-5 max-w-[85%]">
                                                     <div className="relative">
                                                         <div 
-                                                            className="bg-white p-3 rounded-lg shadow-sm message-content cursor-pointer hover:bg-gray-50 transition-colors"
+                                                            className="bg-white p-3 rounded-tl-2xl rounded-b-2xl shadow-sm message-content cursor-pointer hover:bg-gray-50 transition-colors"
                                                             onClick={(e) => handleMessageClick(msg.id, e)}
                                                         >
                                                             <p className='text-md'>
@@ -775,6 +803,7 @@ function Chatbox({ onBack }) {
                                                 </div>
                                             </div>
                                         ) : (
+                                            // Other User's Messages
                                             <div className="flex flex-col items-start w-full">
                                                 <div className="flex gap-3 max-w-[80%] ms-5">
                                                     <img 
@@ -783,7 +812,7 @@ function Chatbox({ onBack }) {
                                                         alt={selectedUser?.fullname || "User"} 
                                                     />
                                                     <div className="relative">
-                                                        <div className="bg-white p-3 rounded-lg shadow-sm message-content">
+                                                        <div className="bg-white p-3 rounded-tl-2xl rounded-b-2xl shadow-sm message-content">
                                                             <p className='text-md'>
                                                                 {msg.text || ''}
                                                                 <span className='ml-2 text-[10px] text-gray-500 align-super'>
@@ -806,7 +835,103 @@ function Chatbox({ onBack }) {
                     
                 </section>
 
-                {/* Form */}
+                {/* Attachement Preview Section */}
+                {previewImage && (
+                    <div className='px-4 pt-3 bg-transparent'>
+                        <div className='bg-white rounded-xl border border-gray-200 p-3 shadow-sm'>
+                            <div className='flex items-center justify-between mb-2'>
+                                
+                                <div className='flex items-center gap-2'>
+                                    <RiImageLine className="text-blue-500" />
+                                    <span className="text-sm font-medium text-gray-700">Image Preview</span>
+                                </div>
+                                <button onClick={() => {
+                                        setPreviewImage(null);
+                                        setAttachments([]);
+                                    }} className='text-gray-400 hover:text-red-500 transition-colors p-1'>
+                                    <RiCloseCircleFill className="text-lg"/>
+                                </button>
+
+                            </div>
+                            <div className="relative">
+                                <img src={previewImage} alt='preview' className="w-full rounded-lg max-h-[200px] object-cover"/>
+                                <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                                    {attachments[0]?.name || 'image.jpg'}
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                )}
+
+                {/* Multiple Attachments Preview */}
+                {attachments.length > 0 && !previewImage && (
+                    <div className='px-4 pt-3 bg-transparent'>
+                        <div className='bg-white rounded-xl border border-gray-200 p-3 shadow-sm'>
+                            <div className='flex items-center gap-2 mb-2'>
+                                <RiAttachmentLine className="text-gray-500" />
+                                <span className="text-sm font-medium text-gray-700">Attachments ({attachments.length})</span>
+                                <button onClick={() => {
+                                        setAttachments([]);
+                                        setPreviewImage(null);
+                                    }}
+                                    className="ml-auto text-gray-400 hover:text-red-500 text-sm"
+                                >
+                                    Clear all
+                                </button>
+                            </div>
+                            <div className='flex flex-wrap gap-2'>
+                                {attachments.map((file,index) => (
+                                    <div key={index} className='flex items-center gap-2 bg-gray-50 hover:bg-gray-100 p-2 rounded-lg border border-gray-200 transition-colors'>
+                                        {getFileIcon(file)}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-medium text-gray-800 truncate max-w-[120px]">
+                                                {file.name}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                {formatFileSize(file.size)}
+                                            </p>
+                                        </div>
+                                        <button onClick={() => removeAttachment(index)}
+                                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                        >
+                                            <RiCloseCircleFill />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Upload Progress */}
+                {Object.keys(uploadProgress).length > 0 && (
+                    <div className='px-4 pt-3 bg-transparent'>
+                        <div className='bg-white rounded-xl border border-gray-200 p-3 shadow-sm'>
+                            <div className='flex items-center gap-2 mb-2'>
+                                <span className="text-sm font-medium text-gray-700">Uploading...</span>
+                            </div>
+                            <div className='space-y-2'>
+                                {Object.entries(uploadProgress).map(([key,progress]) => (
+                                    <div key={key} className='space-y-1'>
+                                        <div className='flex justify-between text-xs text-gray-600'>
+                                            <span>File {key.split('-')[1]}</span>
+                                            <span>{Math.round(progress)}%</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2">
+                                            <div 
+                                                className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                                style={{ width: `${progress}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Message Input Form */}
                 <div className='p-4 w-full bg-white flex-shrink-0'>
                     
                     <form onSubmit={handleMessage} className='flex items-center bg-green-200 
@@ -841,8 +966,12 @@ function Chatbox({ onBack }) {
                                         fileInputRef.current.click()
                                         setShowAttachmentOptions(false)
                                     }}>
-                                        <RiImageAddLine className='text-blue-500'/>
-                                        <span className='text-sm'>Photos & Videos</span>
+                                        <div className="bg-blue-100 p-2 rounded-lg group-hover:bg-blue-200 transition-colors">
+                                            <RiImageAddLine className="text-blue-600 text-lg" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-800">Photos & Videos</p>
+                                        </div>
                                     </button>
 
                                     <button type='button' className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 
@@ -852,8 +981,12 @@ function Chatbox({ onBack }) {
                                         fileInputRef.current.click()
                                         setShowAttachmentOptions(false)
                                     }}>
-                                        <RiFileTextLine className='text-green-500'/>
-                                        <span className='text-sm'>Documents</span>
+                                        <div className="bg-green-100 p-2 rounded-lg group-hover:bg-green-200 transition-colors">
+                                            <RiFileTextLine className="text-green-600 text-lg" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-800">Document</p>
+                                        </div>
                                     </button>
 
                                     <button type='button' className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 
@@ -863,8 +996,12 @@ function Chatbox({ onBack }) {
                                         fileInputRef.current.click()
                                         setShowAttachmentOptions(false)
                                     }}>
-                                        <RiFileTextLine className='text-purple-500'/>
-                                        <span className='text-sm'>Audio</span>
+                                        <div className="bg-purple-100 p-2 rounded-lg group-hover:bg-purple-200 transition-colors">
+                                            <RiMusicLine className="text-purple-600 text-lg" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-800">Audio</p>
+                                        </div>
                                     </button>
                                 
                                 </div>
@@ -872,7 +1009,8 @@ function Chatbox({ onBack }) {
                             )}
 
                         </div>
-
+                            
+                        {/* Text Input */}
                         <input 
                             type='text'
                             value={messageText}
@@ -881,34 +1019,39 @@ function Chatbox({ onBack }) {
                             className='h-full text-[#2A3D39] outline-none text-base pl-3 pr-[50px] rounded-lg w-[98%] disabled:opacity-50 bg-transparent'
                             disabled={isSending}
                         />
+                        
                         <div className="absolute right-5 flex gap-1">
-                            {editingMessage && (
-                                <button
-                                    type="button"
-                                    onClick={cancelEdit}
-                                    className="p-2 hover:bg-red-100 rounded transition-colors"
-                                    title="Cancel edit"
-                                    disabled={isSending}
-                                >
-                                    <RiCloseLine className="text-red-500" />
-                                </button>
-                            )}
-                            <button 
-                                type='submit' 
-                                disabled={!messageText.trim() || isSending}
-                                className='flex items-center justify-center p-2 rounded-full 
-                                bg-[#D9f2ed] hover:bg-[#c8eae3] disabled:opacity-50 
-                                disabled:cursor-not-allowed transition-colors min-w-[40px] cursor-pointer'
-                                aria-label={editingMessage ? "Update message" : (isSending ? "Sending message..." : "Send message")}
-                            >
-                                {isSending ? (
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600"></div>
-                                ) : editingMessage ? (
-                                    <RiCheckLine color="#01AA85" />
-                                ) : (
-                                    <RiSendPlaneFill color="#01AA85" />
+                            {(messageText.trim() || attachments.length > 0) && !isSending && (
+                                <>
+                                {editingMessage && (
+                                    <button
+                                        type="button"
+                                        onClick={cancelEdit}
+                                        className="p-2 hover:bg-red-100 rounded transition-colors"
+                                        title="Cancel edit"
+                                        disabled={isSending}
+                                    >
+                                        <RiCloseLine className="text-red-500" />
+                                    </button>
                                 )}
-                            </button>
+                                <button 
+                                    type='submit' 
+                                    disabled={(!messageText.trim() && attachments.length === 0) || isSending}
+                                    className='flex items-center justify-center p-2 rounded-full 
+                                    bg-[#D9f2ed] hover:bg-[#c8eae3] disabled:opacity-50 
+                                    disabled:cursor-not-allowed transition-colors min-w-[40px] cursor-pointer'
+                                    aria-label={editingMessage ? "Update message" : (isSending ? "Sending message..." : "Send message")}
+                                >
+                                    {isSending ? (
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600"></div>
+                                    ) : editingMessage ? (
+                                        <RiCheckLine color="#01AA85" />
+                                    ) : (
+                                        <RiSendPlaneFill color="#01AA85" />
+                                    )}
+                                </button>
+                                </>
+                            )}
                         </div>
 
                     </form>
@@ -916,6 +1059,52 @@ function Chatbox({ onBack }) {
                 </div>
 
             </main>
+
+            {/* Media Viewer Modal */}
+            {selectedMessageForView && (
+                <div className='fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4'>
+                    <button className='absolute top-4 right-4 text-white p-2 hover:bg-white/20 rounded-full transition-colors' 
+                    onClick={() => setSelectedMessageForView(null)}>
+                        <RiCloseLine className="text-2xl" />
+                    </button>
+
+                    {selectedMessageForView.type === 'image' ? (
+                        <img src={selectedMessageForView.url} alt='Full view' className='max-w-full max-h-[90vh] object-contain' />
+                    ) : selectedMessageForView.type === 'video' ? (
+                        <video 
+                            src={selectedMessageForView.url}
+                            controls
+                            autoPlay
+                            className="max-w-full max-h-[90vh]"
+                        />
+                    ) : null }
+                </div>
+            )}
+
+            {/* CSS Styles */}
+            <style jsx>{`
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 3px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(-5px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-fadeIn {
+                    animation: fadeIn 0.2s ease-out;
+                }
+            `}</style>
+
 
         </section>
     );
