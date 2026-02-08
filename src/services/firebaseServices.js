@@ -292,7 +292,7 @@ class SupabaseService {
 
   // ============ MESSAGES ============
   
-  async sendMessage(messageText, chatId, currentUserUid, selectedUserUid) {
+  async sendMessage(messageText, chatId, currentUserUid, selectedUserUid, attachments = []) {
     try {
       const supabase = this.init();
       
@@ -321,6 +321,21 @@ class SupabaseService {
       const currentUserEmail = currentUserData.email;
       const selectedUserEmail = selectedUserData.email;
 
+      // create message text with attachment indicator
+      let displayText = messageText.trim()
+
+      if(attachments.length > 0) {
+        if(attachments.some(a => a.type === 'image')) {
+          displayText = displayText || 'Photo'
+        } else if (attachments.some(a => a.type === 'video')) {
+            displayText = displayText || 'Video';
+        } else if (attachments.some(a => a.type === 'audio')) {
+            displayText = displayText || 'Audio';
+        } else {
+            displayText = displayText || 'File';
+        }
+      }
+
       // Check if chat exists
       const { data: existingChat, error: chatError } = await supabase
         .from('chats')
@@ -337,7 +352,7 @@ class SupabaseService {
             id: chatId,
             user1email: currentUserEmail,
             user2email: selectedUserEmail,
-            lastmessage: messageText,
+            lastmessage: displayText,
             lastmessagetimestamp: new Date().toISOString(),
           });
 
@@ -351,7 +366,7 @@ class SupabaseService {
         const { error: updateError } = await supabase
           .from('chats')
           .update({
-            lastmessage: messageText,
+            lastmessage: displayText,
             lastmessagetimestamp: new Date().toISOString()
           })
           .eq('id', chatId);
@@ -368,9 +383,11 @@ class SupabaseService {
         .from('messages')
         .insert({
           chatid: chatId,
-          text: messageText,
+          text: displayText,
           sender: currentUserEmail,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          attachments: attachments.length > 0 ? JSON.stringify(attachments) : null,
+          has_attachments: attachments.length > 0
         })
         .select()
         .single();
@@ -380,10 +397,54 @@ class SupabaseService {
         throw error;
       }
       
-      return { ...data, chatId: chatId };
+      return { 
+        ...data, 
+        chatId: chatId, 
+        attachments: attachments.length > 0 ? attachments : [] 
+      };
 
     } catch (error) {
       console.error("Error sending message:", error);
+      throw error;
+    }
+  }
+
+  async uploadFile(file, chatId) {
+    try {
+      const supabase = this.init();
+
+      // Generate Unique File Name
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+      const filePath = `chats/${chatId}/${fileName}`
+
+      // Upload file to supabase storage
+      const { data, error } = await supabase.storage
+        .from('chat-files')
+        .upload(filePath, file)
+
+      if(error) {
+        console.log("Error in Uploading File in the Supabase", error.message)
+        return null
+      }
+
+      // Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-files')
+        .getPublicUrl(filePath)
+
+      return {
+        url : publicUrl,
+        type: file.type.startsWith('image') ? 'image' :
+              file.type.startsWith('video') ? 'video' :
+              file.type.startsWith('audio') ? 'audio' : 'file',
+        file: file.name,
+        size: file.size,
+        mimeType: file.type
+      }
+
+    } catch(error) {
+      console.error('Error uploading file:', error);
       throw error;
     }
   }
@@ -456,7 +517,7 @@ class SupabaseService {
     }
   }
 
-  async updateMessage(chatId, messageId, newText) {
+  async updateMessage(chatId, messageId, newText, attachments = []) {
     try {
       
       const supabase = await this.init();
@@ -477,13 +538,23 @@ class SupabaseService {
         throw new Error("User Data Not Found!")
       }
 
+      // Get existing message to preserve attachments
+      const { data: existingMessage } = await supabase
+        .from('messages')
+        .select('attachments')
+        .eq('id', messageId)
+        .single();
+
+      const currentAttachments = existingMessage?.attachments ? JSON.parse(existingMessage.attachments) : []
+
       // Update Message
       const { error } = await supabase
         .from('messages')
         .update({
           text: newText,
           edited: true,
-          editedat: new Date().toISOString()
+          editedat: new Date().toISOString(),
+          attachments: attachments.length > 0 ? JSON.stringify(attachments) : JSON.stringify(currentAttachments)
         })
         .eq('id', messageId)
         .eq('sender', userData.email)

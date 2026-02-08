@@ -275,37 +275,36 @@ function Chatbox({ onBack }) {
                         [progressKey]: 0
                     }))
 
+                    try {
+                        const uploadFile = await firebaseService.uploadFile(file, chatId, currentUser?.uid)
+                        uploadedAttachments.push(uploadFile)
+
+                        // upload progress to 100%
+                        setUploadProgress(prev => ({
+                            ...prev,
+                            [progressKey]: 100
+                        }))
+
+                        // Remove progress after a delay
+                        setTimeout(() => {
+                            setUploadProgress(prev => {
+                                const newProgress = { ...prev }
+                                delete newProgress[progressKey];
+                                return newProgress;
+                            })
+                        }, 5000)
+
+                    } catch (uploadError) {
+                        console.error('Error uploading file:', uploadError);
+                        toast.error(`Failed to upload ${file.name}`);
+                        // Remove the failed progress
+                        setUploadProgress(prev => {
+                            const newProgress = { ...prev };
+                            delete newProgress[progressKey];
+                            return newProgress;
+                        });
+                    }
                 }
-            }
-
-            try {
-                const uploadFile = await firebaseService.uploadFile(file, chatId, currentUser?.uid)
-                uploadedAttachments.push(uploadFile)
-
-                // upload progress to 100%
-                setUploadProgress(prev => ({
-                    ...prev,
-                    [progressKey]: 100
-                }))
-
-                // Remove progress after a delay
-                setTimeout(() => {
-                    setUploadProgress(prev => {
-                        const newProgress = { ...prev }
-                        delete newProgress[progressKey];
-                        return newProgress;
-                    })
-                }, 5000)
-
-            } catch (uploadError) {
-                console.error('Error uploading file:', uploadError);
-                toast.error(`Failed to upload ${file.name}`);
-                // Remove the failed progress
-                setUploadProgress(prev => {
-                    const newProgress = { ...prev };
-                    delete newProgress[progressKey];
-                    return newProgress;
-                });
             }
             
             if (editingMessage) {
@@ -538,12 +537,13 @@ function Chatbox({ onBack }) {
     }
 
     // Render message content with attachments
-    const renderMessageContent = (msg) => {
+    const renderMessageContent = (msg, showTimestamp = false ) => {
         
         const hasAttachment = msg.attachments && msg.attachments.length > 0
 
         return (
-            <div className='space-y-2'>
+            <div className=''>
+
                 {hasAttachment && (
                     <div className='space-y-3'>
                         {msg.attachments.map((attachment,index) => (
@@ -563,6 +563,7 @@ function Chatbox({ onBack }) {
                                         opacity-0 group-hover:opacity-100 transition-all duration-200" title='Download'>
                                             <RiDownloadLine/>
                                         </button>
+
                                     </div>
 
                                 ) : attachment.type === 'video' ? (
@@ -647,7 +648,6 @@ function Chatbox({ onBack }) {
                                         </div>
                                     </div>
                                 )}
-
                             </div>
                         ))}
                     </div>
@@ -655,7 +655,18 @@ function Chatbox({ onBack }) {
 
                 {msg.text && msg.text !== 'Photo' && msg.text !== 'Video' && msg.text !== 'Audio' && 
                  msg.text !== 'File' && (
-                    <p className='text-sm text-gray-800 mt-2'>{msg.text}</p>
+                    <p className='text-md'>
+                        {msg.text}
+                    </p>
+                )}
+
+                {/* Show timestamp only if showTimestamp is true */}
+                {showTimestamp && (
+                    <div className="text-right">
+                        <span className='text-[10px] text-gray-500 align-super'>
+                            {formatTimestamp(msg.timestamp)}
+                        </span>
+                    </div>
                 )}
 
             </div>
@@ -765,15 +776,10 @@ function Chatbox({ onBack }) {
                                                 <div className="flex gap-3 me-5 max-w-[85%]">
                                                     <div className="relative">
                                                         <div 
-                                                            className="bg-white p-3 rounded-tl-2xl rounded-b-2xl shadow-sm message-content cursor-pointer hover:bg-gray-50 transition-colors"
+                                                            className="bg-white pl-2 pr-2 pt-2 rounded-tl-2xl rounded-b-2xl shadow-sm message-content cursor-pointer hover:bg-gray-50 transition-colors"
                                                             onClick={(e) => handleMessageClick(msg.id, e)}
                                                         >
-                                                            <p className='text-md'>
-                                                                {msg.text || ''}
-                                                                <span className='ml-2 text-[10px] text-gray-500 align-super'>
-                                                                    {formatTimestamp(msg.timestamp)}
-                                                                </span>
-                                                            </p>
+                                                            {renderMessageContent(msg, true)}
                                                         </div>
                                                         
                                                         {/* Edit/Delete Actions for sender's messages */}
@@ -812,13 +818,8 @@ function Chatbox({ onBack }) {
                                                         alt={selectedUser?.fullname || "User"} 
                                                     />
                                                     <div className="relative">
-                                                        <div className="bg-white p-3 rounded-tl-2xl rounded-b-2xl shadow-sm message-content">
-                                                            <p className='text-md'>
-                                                                {msg.text || ''}
-                                                                <span className='ml-2 text-[10px] text-gray-500 align-super'>
-                                                                    {formatTimestamp(msg.timestamp)}
-                                                                </span>
-                                                            </p>
+                                                        <div className="bg-white pl-2 pr-2 pt-2 rounded-tl-2xl rounded-b-2xl shadow-sm message-content">
+                                                            {renderMessageContent(msg, true)}
                                                         </div>
                                                         <p className="text-gray-400 text-xs mt-1">
                                                             {msg.edited && <span className="ml-1 text-gray-500">(edited)</span>}
