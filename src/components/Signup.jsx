@@ -80,14 +80,22 @@ function Signup() {
                 formData?.username
             )
 
-            // Wait for user data to be created in supabase
-            await new Promise(resolve => setTimeout(resolve, 2000)) // small delay
-
             const userData = await firebaseService.getUser(userCredential.user.id)
 
             if (!userData) {
-                toast.error('User data not found in database')
+                // Wait and try again
+                await new Promise(resolve => setTimeout(resolve, 1000))
+                const userData = await firebaseService.getUser(userCredential.user.id)
+                
+                if (!userData) {
+                    toast.error('User data not found in database')
+                    return
+                }
             }
+
+            // if (!userData) {
+            //     toast.error('User data not found in database')
+            // }
 
             dispatch(login({
                 uid: userData.uid,

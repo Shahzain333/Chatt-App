@@ -60,7 +60,7 @@ class SupabaseService {
         await this.addUser({
           uid: authData.user.id,
           email: authData.user.email,
-          username: email.split('@')[0],
+          username: authData.user.email.split('@')[0],
           fullName: username || '',
           image: ""
         });
@@ -409,46 +409,6 @@ class SupabaseService {
     }
   }
 
-  async uploadFile(file, chatId) {
-    try {
-      const supabase = this.init();
-
-      // Generate Unique File Name
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-      const filePath = `chats/${chatId}/${fileName}`
-
-      // Upload file to supabase storage
-      const { data, error } = await supabase.storage
-        .from('chat-files')
-        .upload(filePath, file)
-
-      if(error) {
-        console.log("Error in Uploading File in the Supabase", error.message)
-        return null
-      }
-
-      // Get Public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('chat-files')
-        .getPublicUrl(filePath)
-
-      return {
-        url : publicUrl,
-        type: file.type.startsWith('image') ? 'image' :
-              file.type.startsWith('video') ? 'video' :
-              file.type.startsWith('audio') ? 'audio' : 'file',
-        file: file.name,
-        size: file.size,
-        mimeType: file.type
-      }
-
-    } catch(error) {
-      console.error('Error uploading file:', error);
-      throw error;
-    }
-  }
-
   listenForMessages(chatId, callback) {
     
     if(!chatId) return () => {};
@@ -520,7 +480,7 @@ class SupabaseService {
   async updateMessage(chatId, messageId, newText, attachments = []) {
     try {
       
-      const supabase = await this.init();
+      const supabase = this.init();
       const currentUser = await this.getCurrentUser();
 
       if(!currentUser) {
@@ -546,6 +506,34 @@ class SupabaseService {
         .single();
 
       const currentAttachments = existingMessage?.attachments ? JSON.parse(existingMessage.attachments) : []
+
+      // Find attachments that were removed
+      // if(currentAttachments.length > 0 && attachments.length > 0) {
+      //   const removeAttachments = currentAttachments.filter(oldAttachment => !attachments.some(newAttachment => 
+      //     newAttachment.url === oldAttachment.url
+      //   ))
+
+      //   // Delete removed files from storage
+      //   for(const attachment of removeAttachments) {
+          
+      //     if(attachment.url) {
+      //       const filePath = this.extractFilePathFromUrl(attachment.url)
+           
+      //       if(filePath) {
+      //         const { error: storageError } = await supabase.storage
+      //           .from('chat-files')
+      //           .remove([filePath])
+
+      //         if(storageError) {
+      //           console.warn('Failed to delete removed file:', storageError);
+      //         }
+
+      //       }
+      //     }
+        
+      //   }
+
+      // }
 
       // Update Message
       const { error } = await supabase
@@ -653,6 +641,68 @@ class SupabaseService {
       console.log("Error updating chat last message:", error);
       throw Error
     }
+  }
+
+  async uploadFile(file, chatId) {
+    try {
+      const supabase = this.init();
+
+      // Generate Unique File Name
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+      const filePath = `chats/${chatId}/${fileName}`
+
+      // Upload file to supabase storage
+      const { data, error } = await supabase.storage
+        .from('chat-files')
+        .upload(filePath, file)
+
+      if(error) {
+        console.log("Error in Uploading File in the Supabase", error.message)
+        return null
+      }
+
+      // Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-files')
+        .getPublicUrl(filePath)
+
+      return {
+        url : publicUrl,
+        type: file.type.startsWith('image') ? 'image' :
+              file.type.startsWith('video') ? 'video' :
+              file.type.startsWith('audio') ? 'audio' : 'file',
+        file: file.name,
+        size: file.size,
+        mimeType: file.type
+      }
+
+    } catch(error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+  }
+
+  extractFilePathFromUrl(url) {
+    if(!url) return null;
+
+    // Supabase storage URLs typically look like:
+    // https://[project-ref].supabase.co/storage/v1/object/public/[bucket]/[path]
+    try {
+      const urlObj = new URL(url)
+      const pathParts = urlObj.pathname.split('/')
+
+      // Find the index after 'object/public'
+      const publicIndex = pathParts.findIndex(part => part === 'object') + 2;
+      if(publicIndex < pathParts.length) {
+        // Join everything after the bucket name
+        return pathParts.slice(publicIndex + 1).join('/')
+      }
+    } catch (error) {
+      console.error('Error parsing URL:', error);
+    }
+
+    return null
   }
 
   // ============ Chats ============

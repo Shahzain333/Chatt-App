@@ -38,7 +38,7 @@ function Chatbox({ onBack }) {
     const [uploadProgress, setUploadProgress] = useState({});
     const [selectedMessageForView, setSelectedMessageForView] = useState(null);
     const [playingAudio, setPlayingAudio] = useState(null);
-    const [fullscreenImage, setFullscreenImage] = useState(null);
+    //const [fullscreenImage, setFullscreenImage] = useState(null);
     
     const scrollRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -215,6 +215,7 @@ function Chatbox({ onBack }) {
 
     }
 
+    // Remove Attachments File 
     const removeAttachment = (index) => {
         
         setAttachments(prev => prev.filter((_, i) => i !== index))
@@ -631,7 +632,7 @@ function Chatbox({ onBack }) {
                                             </div>
                                             <div className='flex-1 min-w-0'>
                                                 <p className='text-sm font-medium text-gray-800 truncate'>
-                                                    {attachment.name}
+                                                    {attachment.file}
                                                 </p>
                                                 <p className='text-xs text-gray-500'>{attachment.size}</p>
                                             </div>
