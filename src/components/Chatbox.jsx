@@ -1,25 +1,37 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import defaultAvatar from '../assets/default.jpg';
-import { RiSendPlaneFill, RiArrowLeftLine, RiEditLine, RiDeleteBinLine, 
-    RiCheckLine, RiCloseLine, RiMore2Fill, RiImageAddLine, RiVideoLine, 
-    RiMusicLine, RiFileTextLine, RiAttachmentLine, 
+import { 
+    RiSendPlaneFill, 
+    RiArrowLeftLine, 
+    RiEditLine, 
+    RiDeleteBinLine, 
+    RiCheckLine, 
+    RiCloseLine, 
+    RiMore2Fill, 
+    RiImageAddLine, 
+    RiVideoLine, 
+    RiMusicLine, 
+    RiFileTextLine, 
+    RiAttachmentLine, 
     RiDownloadLine,
     RiImageLine,
-    RiCloseCircleLine,
-    RiCloseCircleFill} from 'react-icons/ri';
+    RiCloseCircleFill,
+    RiMic2Fill,
+    RiPauseCircleLine,
+    RiPlayCircleLine
+} from 'react-icons/ri';
 import Logo from '../assets/logo.png';
 import { formatTimestamp } from '../utils/formatTimestamp';
 import firebaseService from '../services/firebaseServices';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
-  addMessage,
-  setMessages, 
-  setSelectedUser, 
-  setLoading,
-  updateMessage,
-  deleteMessage,
-  deleteChats,
-  //setChats
+    addMessage,
+    setMessages, 
+    setSelectedUser, 
+    setLoading,
+    updateMessage,
+    deleteMessage,
+    deleteChats,
 } from '../store/chatSlice';
 import LoadingScreen from './Chatlist/LoadingScreen';
 import { toast } from 'sonner';
@@ -32,18 +44,27 @@ function Chatbox({ onBack }) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isSending, setIsSending] = useState(false);
 
-    const [attachments, setAttachments] = useState([])
+    const [attachments, setAttachments] = useState([]);
     const [showAttachmentOptions, setShowAttachmentOptions] = useState(false);
     const [previewImage, setPreviewImage] = useState(null);
     const [uploadProgress, setUploadProgress] = useState({});
     const [selectedMessageForView, setSelectedMessageForView] = useState(null);
     const [playingAudio, setPlayingAudio] = useState(null);
-    //const [fullscreenImage, setFullscreenImage] = useState(null);
+    
+    // Voice recording states
+    const [isRecording, setIsRecording] = useState(false);
+    const [isRecordingAllowed, setIsRecordingAllowed] = useState(false);
     
     const scrollRef = useRef(null);
+
+    // File Send Refs
     const fileInputRef = useRef(null);
     const attachmentMenuRef = useRef(null);
-    const audioRefs = useRef({})
+    const audioRefs = useRef({});
+    
+    // Voice recording refs
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
     
     const dispatch = useDispatch();
     const { messages, selectedUser, loading } = useSelector(state => state.chat);
@@ -56,12 +77,23 @@ function Chatbox({ onBack }) {
             : `${selectedUser.uid}_${currentUser.uid}`;
     }, [selectedUser, currentUser]);
 
+    // Check microphone permissions on mount
+    useEffect(() => {
+        checkMicrophonePermission();
+        
+        return () => {
+            // Cleanup recording if active when component unmounts
+            if (isRecording) {
+                stopRecording();
+            }
+        };
+    }, []);
+
     // Messages listener
     useEffect(() => {
         if (chatId && selectedUser) {
             dispatch(setLoading(true));
             const unsubscribe = firebaseService.listenForMessages(chatId, (newMessages) => {
-                // Parse attachments from JSON string
                 const parsedMessages = newMessages?.map(msg => ({
                     ...msg,
                     attachments: msg.attachments ? JSON.parse(msg.attachments) : []
@@ -75,12 +107,10 @@ function Chatbox({ onBack }) {
                 unsubscribe();
                 dispatch(setLoading(false));
             };
-    
         } else {
             dispatch(setMessages([]));
             dispatch(setLoading(false));
         }
-    
     }, [chatId, selectedUser, dispatch]);
 
     // Auto-scroll to bottom when new messages arrive
@@ -96,24 +126,29 @@ function Chatbox({ onBack }) {
         setEditingMessage(null);
         setActiveMessageId(null);
         setIsSending(false);
-        setAttachments([])
-        setPreviewImage(null)
-        setUploadProgress({})
+        setAttachments([]);
+        setPreviewImage(null);
+        setUploadProgress({});
+        
         // Stop all audio when switching chats
         Object.values(audioRefs.current).forEach(audio => {
             if(audio) {
-                audio.pause()
-                audio.currentTime = 0
+                audio.pause();
+                audio.currentTime = 0;
             }
-        })
+        });
         setPlayingAudio(null);
+        
+        // Stop recording if active
+        if (isRecording) {
+            stopRecording();
+        }
 
     }, [selectedUser?.uid]);
 
     // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (e) => {
-
             const menu = document.querySelector('.mobile-menu');
             const menuButton = document.querySelector('.menu-button');
             const attachmentButton = document.querySelector('.attachment-button');
@@ -129,21 +164,16 @@ function Chatbox({ onBack }) {
             // Close attachment options
             if(attachmentMenuRef.current && 
                 !attachmentMenuRef.current.contains(e.target) &&
-                !e.target.closet('attachment-button')) {
-                    setShowAttachmentOptions(false)
+                !e.target.closest('.attachment-button')) {
+                    setShowAttachmentOptions(false);
             }
-
         };
 
-        // Only add event listener when menu is open
-        // if (isMobileMenuOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        //}
-
+        document.addEventListener('mousedown', handleClickOutside);
+        
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-
     }, []);
 
     // Close message actions when clicking outside
@@ -173,69 +203,255 @@ function Chatbox({ onBack }) {
 
     }, [messages]);
 
-    // ===================== Filing Work =======================
+    // Check microphone permission
+    const checkMicrophonePermission = async () => {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                toast.error('Your browser does not support voice recording');
+                setIsRecordingAllowed(false);
+                return;
+            }
+            
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop());
+            setIsRecordingAllowed(true);
+        } catch (error) {
+            console.error('Microphone permission error:', error);
+            setIsRecordingAllowed(false);
+            toast.error('Microphone access is required for voice messages');
+        }
+    };
+
+    // ========================== Voice Message Feature =================================
+    const startRecording = async () => {
+        try {
+            if (!isRecordingAllowed) {
+                await checkMicrophonePermission();
+                if (!isRecordingAllowed) return;
+            }
+
+            audioChunksRef.current = [];
+            setMessageText('Recording...');
+            setIsRecording(true);
+            toast.info('Recording started... Speak now! Click stop to send.');
+
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 44100
+                }
+            });
+
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm;codecs=opus' 
+                : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
+
+            if (!mimeType) {
+                toast.error('Your browser does not support audio recording');
+                setIsRecording(false);
+                setMessageText('');
+                return;
+            }
+
+            mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
+
+            mediaRecorderRef.current.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorderRef.current.onstop = async () => {
+                if (audioChunksRef.current.length === 0) {
+                    toast.error('No audio recorded');
+                    return;
+                }
+                
+                const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+                await sendVoiceMessage(audioBlob);
+                
+                // Stop all tracks
+                stream.getTracks().forEach(track => {
+                    track.stop();
+                    track.enabled = false;
+                });
+            };
+
+            mediaRecorderRef.current.onerror = (event) => {
+                console.error('MediaRecorder error:', event.error);
+                toast.error('Recording error occurred');
+                stopRecording();
+            };
+
+            mediaRecorderRef.current.start(100); // Collect data every 100ms
+
+        } catch (error) {
+            console.error('Error starting recording:', error);
+            toast.error('Failed to start recording: ' + error.message);
+            setIsRecording(false);
+            setMessageText('');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+            
+            // Stop all tracks if they exist
+            if (mediaRecorderRef.current.stream) {
+                mediaRecorderRef.current.stream.getTracks().forEach(track => {
+                    track.stop();
+                    track.enabled = false;
+                });
+            }
+        }
+        setMessageText('');
+    };
+
+    const sendVoiceMessage = async (audioBlob) => {
+        if (!audioBlob || !selectedUser?.uid || !currentUser?.uid || !chatId) {
+            toast.error('No recording to send');
+            return;
+        }
+
+        try {
+            setIsSending(true);
+            
+            // Create a unique filename
+            const timestamp = new Date().getTime();
+            const filename = `voice_message_${timestamp}.webm`;
+            
+            // Create a file from blob
+            const audioFile = new File([audioBlob], filename, { 
+                type: audioBlob.type,
+                lastModified: timestamp 
+            });
+
+            // Upload the voice message
+            const uploadedAttachment = await firebaseService.uploadFile(audioFile, chatId, currentUser.uid);
+
+            // Send message with voice attachment
+            await firebaseService.sendMessage(
+                'Voice message', 
+                chatId, 
+                currentUser.uid, 
+                selectedUser.uid,
+                [uploadedAttachment]
+            );
+
+            // Add to Redux for immediate UI update
+            const newMessage = {
+                id: chatId,
+                text: 'Voice message',
+                sender: currentUser.email,
+                attachments: [uploadedAttachment],
+                timestamp: new Date().toISOString(),
+            };
+            
+            dispatch(addMessage(newMessage));
+
+            toast.success('Voice message sent!');
+
+        } catch (error) {
+            console.error('Error sending voice message:', error);
+            toast.error('Failed to send voice message: ' + error.message);
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    // Toggle Audio Play for received voice messages
+    const toggleAudioPlay = (messageId, audioUrl) => {
+        const audioElement = audioRefs.current[messageId];
+
+        if (!audioElement) return;
+
+        if (playingAudio === messageId) {
+            audioElement.pause();
+            setPlayingAudio(null);
+        } else {
+            // Stop currently playing audio
+            if (playingAudio) {
+                const currentAudio = audioRefs.current[playingAudio];
+                if (currentAudio) {
+                    currentAudio.pause();
+                    currentAudio.currentTime = 0;
+                }
+            }
+
+            audioElement.play();
+            setPlayingAudio(messageId);
+
+            // Reset when audio ends
+            audioElement.onended = () => {
+                setPlayingAudio(null);
+            };
+            
+            audioElement.onerror = () => {
+                toast.error('Failed to play audio');
+                setPlayingAudio(null);
+            };
+        }
+    };
+
+    // ===================== File Handling =======================
     const handleFileSelect = (e) => {
-        
-        const  files = Array.from(e.target.files)
-        const validFiles = []
+        const files = Array.from(e.target.files);
+        const validFiles = [];
 
         files.forEach(file => {
             // Check file size (max 100MB)
             if(file.size > 100 * 1024 * 1024) {
-                toast.error(`File ${file.name} is too large (max 100MB)`)
-                return
+                toast.error(`File ${file.name} is too large (max 100MB)`);
+                return;
             }
 
-            // check file type
-            const fileType = file.type.split('/')[0]
+            // Check file type
+            const fileType = file.type.split('/')[0];
             
-            if(['image','video','audio'].includes(fileType) || file.type === 'application/pdf' ||
-                file.type === 'application/msword' ||
-                file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                    validFiles.push(file)
+            if(['image','video','audio'].includes(fileType) || 
+               file.type === 'application/pdf' ||
+               file.type === 'application/msword' ||
+               file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                validFiles.push(file);
             } else {
                 toast.error(`File type ${file.type} is not supported`);
             }
-
-        })
+        });
 
         if(validFiles.length > 0) {
-            setAttachments(prev => [...prev, ...validFiles])
+            setAttachments(prev => [...prev, ...validFiles]);
 
             // Preview first Image
-            const firstImage = validFiles.find(f => f.type.startsWith('image'))
+            const firstImage = validFiles.find(f => f.type.startsWith('image'));
             if(firstImage) {
-                const reader = new FileReader()
-                reader.onload = (e) => setPreviewImage(e.target.result)
-                reader.readAsDataURL(firstImage)
+                const reader = new FileReader();
+                reader.onload = (e) => setPreviewImage(e.target.result);
+                reader.readAsDataURL(firstImage);
             }
         }
 
-        e.target.value = ''
-
-    }
+        e.target.value = '';
+    };
 
     // Remove Attachments File 
     const removeAttachment = (index) => {
-        
-        setAttachments(prev => prev.filter((_, i) => i !== index))
+        setAttachments(prev => prev.filter((_, i) => i !== index));
 
         // Update Preview if needed
         if(attachments[index]?.type.startsWith('image')) {
-            
-            const nextImage = attachments.find((a,i) => i !== index && a.type.startsWith('image'))
+            const nextImage = attachments.find((a,i) => i !== index && a.type.startsWith('image'));
             
             if(nextImage) {
-                const reader = new FileReader()
-                reader.onload = (e) => setPreviewImage(e.target.result)
-                reader.readAsDataURL(nextImage)
+                const reader = new FileReader();
+                reader.onload = (e) => setPreviewImage(e.target.result);
+                reader.readAsDataURL(nextImage);
             } else {
-                setPreviewImage(null)
+                setPreviewImage(null);
             }
-
         }
-
-    }
+    };
 
     const getFileIcon = (file) => {
         if (file.type.startsWith('image')) return <RiImageAddLine className="text-blue-500" />;
@@ -244,56 +460,97 @@ function Chatbox({ onBack }) {
         if (file.type === 'application/pdf') return <RiFileTextLine className="text-red-500" />;
         if (file.type?.includes('document') || file.type?.includes('word')) return <RiFileTextLine className="text-blue-600" />;
         return <RiAttachmentLine className="text-gray-500" />;
-    } 
+    };
 
     const formatFileSize = (bytes) => {
-        if(!bytes) return '0 B'
-        if(bytes < 1024) return bytes + ' B'
-        if(bytes < 1024 * 1024) return (bytes/ 1024).toFixed(1) + ' KB'
-        return (bytes / (1024 * 1024)).toFixed(1) + ' MB' 
-    }
+        if(!bytes) return '0 B';
+        if(bytes < 1024) return bytes + ' B';
+        if(bytes < 1024 * 1024) return (bytes/ 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    };
+
+    // Download File / Images
+    const handleDownload = async (url, filename) => {
+        let blobUrl = null
+        try {
+
+            const response = await fetch(url)
+
+            if(!response.ok) {
+                throw new Error(`Failed to fetch file: ${response.status}`);
+            }
+
+            const blob = await response.blob()
+            blobUrl = window.URL.createObjectURL(blob)
+
+            // Create and use link without appending to DOM
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            // document.body.appendChild(link);
+            link.click();
+            
+            // Cleanup
+            // setTimeout(() => {
+            //     document.body.removeChild(link);
+            //     window.URL.revokeObjectURL(blob)
+            // }, 100)
+
+            toast.success('Downloaded');
+
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            toast.error('Failed to download file');
+        } finally {
+            if(blobUrl) {
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(blobUrl);
+                }, 0);
+            }
+        }
+    };
     
+    // ============================== Handle Messages ====================================
     const handleMessage = async (e) => {
         e.preventDefault();
 
-        if ((!messageText.trim() && attachments.length === 0 ) || !selectedUser?.uid || !currentUser?.uid || !chatId || isSending) {
+        if ((!messageText.trim() && attachments.length === 0 ) || !selectedUser?.uid || !currentUser?.uid || !chatId || isSending || isRecording) {
             return;
         }
 
         try {
             setIsSending(true);
-            let uploadedAttachments = []
+            let uploadedAttachments = [];
 
             // Upload File if any
             if(attachments.length > 0) {
                 for(let i = 0; i < attachments.length; i++) {
-                    
                     const file = attachments[i];
-                    const progressKey = `${Date.now()}-${i}`
+                    const progressKey = `${Date.now()}-${i}`;
 
                     setUploadProgress(prev => ({
                         ...prev,
                         [progressKey]: 0
-                    }))
+                    }));
 
                     try {
-                        const uploadFile = await firebaseService.uploadFile(file, chatId, currentUser?.uid)
-                        uploadedAttachments.push(uploadFile)
+                        const uploadFile = await firebaseService.uploadFile(file, chatId, currentUser?.uid);
+                        uploadedAttachments.push(uploadFile);
 
                         // upload progress to 100%
                         setUploadProgress(prev => ({
                             ...prev,
                             [progressKey]: 100
-                        }))
+                        }));
 
                         // Remove progress after a delay
                         setTimeout(() => {
                             setUploadProgress(prev => {
-                                const newProgress = { ...prev }
+                                const newProgress = { ...prev };
                                 delete newProgress[progressKey];
                                 return newProgress;
-                            })
-                        }, 5000)
+                            });
+                        }, 5000);
 
                     } catch (uploadError) {
                         console.error('Error uploading file:', uploadError);
@@ -335,7 +592,6 @@ function Chatbox({ onBack }) {
                     uploadedAttachments
                 );
                 
-                //const tempMessageId = `temp-${Date.now()}`;
                 const newMessage = {
                     id: chatId,
                     text: messageText.trim(),
@@ -346,13 +602,13 @@ function Chatbox({ onBack }) {
                 
                 dispatch(addMessage(newMessage));
                
-                const successMessage = uploadedAttachments.length > 0 ? `${uploadedAttachments.length} 
-                file${uploadedAttachments.length > 1 ? 's' : ''} sent!` : 'Message sent!';
+                const successMessage = uploadedAttachments.length > 0 
+                    ? `${uploadedAttachments.length} file${uploadedAttachments.length > 1 ? 's' : ''} sent!` 
+                    : 'Message sent!';
 
                 toast.success(successMessage, {
                     duration: 3000,
                 });
-
             }
             
             // Clear form
@@ -365,7 +621,7 @@ function Chatbox({ onBack }) {
             toast.error('Failed to send message. Please try again.');
         } finally {
             setIsSending(false);
-            setUploadProgress({})
+            setUploadProgress({});
         }
     };
 
@@ -429,22 +685,6 @@ function Chatbox({ onBack }) {
         });
     };
 
-    // Download File / Images
-    const handleDownload = async (url, filename) =>{
-        try {
-            const link = document.createElement('a')
-            link.href = url
-            link.download = filename
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-            toast.success('Download started')
-        } catch (error) {
-            console.error('Error downloading file:', error);
-            toast.error('Failed to download file');
-        }
-    }
-
     const cancelEdit = () => {
         setEditingMessage(null);
         setMessageText('');
@@ -452,7 +692,6 @@ function Chatbox({ onBack }) {
 
     // Delete chats
     const handleDeleteSelectedUserChats = async () => {
-        
         if (!selectedUser || !currentUser) {
             toast.info("Please select a user first to delete the chat.", {
                 duration: 3000,
@@ -503,79 +742,104 @@ function Chatbox({ onBack }) {
         );
     };
 
-    // Toggle Audio Play
-    const toggleAudioPlay = (messageId, audioUrl) => {
+    // Render voice message UI
+    const renderVoiceMessage = (attachment, messageId) => {
+        return (
+            <div className='bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg max-w-[300px]'>
+                <div className='flex items-center gap-3'>
+                    
+                    <div className="bg-blue-100 p-3 rounded-full">
+                        <RiMusicLine className="text-blue-600 text-xl" />
+                    </div>
+                    <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                            {attachment.name || 'Voice message'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                            {formatFileSize(attachment.size)} • Voice message
+                        </p>
+                    </div>
 
-        const audioElement = audioRefs.current[messageId]
+                    <button 
+                        onClick={() => toggleAudioPlay(messageId, attachment.url)}
+                        className="p-2 bg-blue-100 hover:bg-blue-200 rounded-full transition-colors"
+                        title={playingAudio === messageId ? "Pause" : "Play"}
+                    >
+                        {playingAudio === messageId ? 
+                            <RiPauseCircleLine className="text-blue-600 text-xl" /> : 
+                            <RiPlayCircleLine className="text-blue-600 text-xl" />
+                        }
+                    </button>
 
-        if(!audioElement) return
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownload(attachment.url, attachment.name || 'voice_message.webm');
+                        }}
+                        className="p-2 hover:bg-gray-200 rounded-full"
+                        title="Download"
+                    >
+                        <RiDownloadLine className="text-gray-600" />
+                    </button>
+                </div>
+                <audio 
+                    ref={(el) => audioRefs.current[messageId] = el} 
+                    className="hidden" 
+                    src={attachment.url}
+                />
+            </div>
+        );
+    };
 
-        if(playingAudio === messageId) {
-            audioElement.pause()
-            setPlayingAudio(null)
-        } else {
-            // Stop currently playing audio
-            if(playingAudio) {
-                const currentAudio = audioRefs.current[playingAudio]
-
-                if(currentAudio) {
-                    currentAudio.pause()
-                    currentAudio.currentTime = 0
-                }
-
-            }
-
-            audioElement.play()
-            setPlayingAudio(messageId)
-
-            // Reset When Audio Ends
-            audioElement.onended = () => {
-                setPlayingAudio(null)
-            }
-
-        }
-
-    }
-
-    // Render message content with attachments
-    const renderMessageContent = (msg, showTimestamp = false ) => {
+    // Render Message Content
+    const renderMessageContent = (msg, showTimestamp = false) => {
         
-        const hasAttachment = msg.attachments && msg.attachments.length > 0
+        const hasAttachment = msg.attachments && msg.attachments.length > 0;
+
+        // Check if message is a voice message
+        const isVoiceMessage = hasAttachment && msg.attachments.some(a => 
+            a.type === 'audio' || a.mimeType?.includes('audio') || a.name?.includes('voice_message')
+        );
 
         return (
             <div className=''>
-
                 {hasAttachment && (
                     <div className='space-y-3'>
-                        {msg.attachments.map((attachment,index) => (
+                        {msg.attachments.map((attachment, index) => (
                             <div key={index} className='relative'>
-                                
-                                {attachment.type === 'image' ? (
-                                    
+                                {isVoiceMessage ? (
+                                    renderVoiceMessage(attachment, msg.id + index)
+                                ) : attachment.type === 'image' ? (
                                     <div className='relative group'>
-                                        <img src={attachment.url} alt={attachment.name} className="max-w-full rounded-lg cursor-pointer 
-                                            max-h-[300px] object-cover hover:opacity-95 transition-opacity" onClick={() => 
-                                            setSelectedMessageForView({ url: attachment.url, type: 'image'})}
+                                        <img 
+                                            src={attachment.url} 
+                                            alt={attachment.name} 
+                                            className="max-w-full rounded-lg cursor-pointer max-h-[300px] object-cover hover:opacity-95 transition-opacity" 
+                                            onClick={() => setSelectedMessageForView({ url: attachment.url, type: 'image'})}
                                         />
-                                        <button onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleDownload(attachment.url, attachment.name)
-                                        }} className="absolute bottom-2 right-2 bg-black/70 hover:bg-black/90 text-white p-2 rounded-full 
-                                        opacity-0 group-hover:opacity-100 transition-all duration-200" title='Download'>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDownload(attachment.url, attachment.name);
+                                            }} 
+                                            className="absolute bottom-2 right-2 bg-black/70 hover:bg-black/90 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200" 
+                                            title='Download'
+                                        >
                                             <RiDownloadLine/>
                                         </button>
-
                                     </div>
-
                                 ) : attachment.type === 'video' ? (
-                                    
                                     <div className='relative rounded-lg overflow-hidden bg-black'>
-                                        <video className='max-w-full rounded-lg max-h-[300px]' controls
-                                            poster="https://images.unsplash.com/photo-1536240478700-b869070f9279?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80">
-                                                <source src={attachment.url} type='video/mp4'/>
-                                                Your browser does not support the video tag.
+                                        <video 
+                                            className='max-w-full rounded-lg max-h-[300px]' 
+                                            controls
+                                            poster="https://images.unsplash.com/photo-1536240478700-b869070f9279?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80"
+                                        >
+                                            <source src={attachment.url} type='video/mp4'/>
+                                            Your browser does not support the video tag.
                                         </video>
-                                        <button onClick={(e) => {
+                                        <button 
+                                            onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleDownload(attachment.url, attachment.name);
                                             }}
@@ -585,43 +849,10 @@ function Chatbox({ onBack }) {
                                             <RiDownloadLine />
                                         </button>
                                     </div>
-
                                 ) : attachment.type === 'audio' ? (
-                                    
-                                    <div className='bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg max-w-[300px]'>
-                                        <div className='flex items-center gap-3'>
-                                            
-                                            <div className="bg-blue-100 p-3 rounded-full">
-                                                <RiMusicLine className="text-blue-600 text-xl" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-sm font-medium text-gray-800 truncate">{attachment.name}</p>
-                                                <p className="text-xs text-gray-500">{formatFileSize(attachment.size)}</p>
-                                            </div>
-                                            <button onClick={() => toggleAudioPlay(msg.id + index, attachment.url)}
-                                            className="p-2 bg-blue-100 hover:bg-blue-200 rounded-full transition-colors">
-                                                { playingAudio === msg.id + index ? <RiPauseCircleLine className="text-blue-600 text-xl" /> : 
-                                                    <RiPlayCircleLine className="text-blue-600 text-xl" />
-                                                }
-                                            </button>
-                                            <button onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDownload(attachment.url, attachment.name);
-                                                }}
-                                                className="p-2 hover:bg-gray-200 rounded-full"
-                                                title="Download"
-                                            >
-                                                <RiDownloadLine className="text-gray-600" />
-                                            </button>
-                                        </div>
-
-                                        <audio ref={(el) => audioRefs.current[msg.id + index] = el} className="hidden" src={attachment.url}/>
-
-                                    </div>
-
+                                    renderVoiceMessage(attachment, msg.id + index)
                                 ) : (
-                                    <div className='bg-gray-50 hover:bg-gray-100 p-4 rounded-lg max-w-[300px] border border-gray-200 
-                                    transition-colors cursor-pointer group'>
+                                    <div className='bg-gray-50 hover:bg-gray-100 p-4 rounded-lg max-w-[300px] border border-gray-200 transition-colors cursor-pointer group'>
                                         <div className='flex items-center gap-3'>
                                             <div className={`p-3 rounded-lg ${
                                                 attachment.type === 'file' && attachment.mimeType === 'application/pdf' 
@@ -632,9 +863,9 @@ function Chatbox({ onBack }) {
                                             </div>
                                             <div className='flex-1 min-w-0'>
                                                 <p className='text-sm font-medium text-gray-800 truncate'>
-                                                    {attachment.file}
+                                                    {attachment.name}
                                                 </p>
-                                                <p className='text-xs text-gray-500'>{attachment.size}</p>
+                                                <p className='text-xs text-gray-500'>{formatFileSize(attachment.size)}</p>
                                             </div>
                                             <button 
                                                 onClick={(e) => {
@@ -655,7 +886,7 @@ function Chatbox({ onBack }) {
                 )}
 
                 {msg.text && msg.text !== 'Photo' && msg.text !== 'Video' && msg.text !== 'Audio' && 
-                 msg.text !== 'File' && (
+                 msg.text !== 'File' && msg.text !== 'Voice message' && (
                     <p className='text-md'>
                         {msg.text}
                     </p>
@@ -669,9 +900,9 @@ function Chatbox({ onBack }) {
                         </span>
                     </div>
                 )}
-
             </div>
-    )}
+        );
+    };
 
     // Show loading state
     if (loading && messages.length === 0) {
@@ -706,7 +937,7 @@ function Chatbox({ onBack }) {
                         className='flex items-center justify-center text-gray-600 
                         hover:bg-gray-100 rounded-full transition-colors p-1 cursor-pointer'
                         aria-label="Back to chat list"
-                        disabled={isSending}
+                        disabled={isSending || isRecording}
                     >
                         <RiArrowLeftLine className='text-2xl' />
                     </button>
@@ -732,7 +963,7 @@ function Chatbox({ onBack }) {
                     rounded-lg transition-colors cursor-pointer menu-button"
                     aria-label="More options"
                     onClick={toggleMenuList}
-                    disabled={isSending}
+                    disabled={isSending || isRecording}
                 >
                     {isMobileMenuOpen ? <RiCloseLine color="#01AA85" /> : <RiMore2Fill color="#01AA85" />}
                 </button>
@@ -760,11 +991,8 @@ function Chatbox({ onBack }) {
             <main className='flex flex-col flex-1 w-full overflow-hidden'>
                 
                 <section className='flex-1 overflow-hidden px-3 pt-5'>
-                    
                     <div ref={scrollRef} className='h-full overflow-y-auto custom-scrollbar'>
-                        
                         <div className='min-h-full flex flex-col justify-end'>
-                           
                             {sortedMessages.length === 0 ? (
                                 <div className="flex-1 flex items-center justify-center text-gray-500 py-8">
                                     <p>No messages yet. Start the conversation!</p>
@@ -834,15 +1062,13 @@ function Chatbox({ onBack }) {
                             )}
                         </div>
                     </div>
-                    
                 </section>
 
-                {/* Attachement Preview Section */}
+                {/* Attachment Preview Section */}
                 {previewImage && (
                     <div className='px-4 pt-3 bg-transparent'>
                         <div className='bg-white rounded-xl border border-gray-200 p-3 shadow-sm'>
                             <div className='flex items-center justify-between mb-2'>
-                                
                                 <div className='flex items-center gap-2'>
                                     <RiImageLine className="text-blue-500" />
                                     <span className="text-sm font-medium text-gray-700">Image Preview</span>
@@ -853,7 +1079,6 @@ function Chatbox({ onBack }) {
                                     }} className='text-gray-400 hover:text-red-500 transition-colors p-1'>
                                     <RiCloseCircleFill className="text-lg"/>
                                 </button>
-
                             </div>
                             <div className="relative">
                                 <img src={previewImage} alt='preview' className="w-full rounded-lg max-h-[200px] object-cover"/>
@@ -861,7 +1086,6 @@ function Chatbox({ onBack }) {
                                     {attachments[0]?.name || 'image.jpg'}
                                 </div>
                             </div>
-
                         </div>
                     </div>
                 )}
@@ -935,39 +1159,39 @@ function Chatbox({ onBack }) {
 
                 {/* Message Input Form */}
                 <div className='p-4 w-full bg-white flex-shrink-0'>
-                    
-                    <form onSubmit={handleMessage} className='flex items-center bg-green-200 
-                    h-[55px] w-full px-2 rounded-lg relative shadow-lg'>
-
+                    <form onSubmit={handleMessage} className='flex items-center bg-green-200 h-[55px] w-full px-2 rounded-lg relative shadow-lg'>
                         {/* Hidden file input */}
                         <input
                            type='file'
                            ref={fileInputRef}
                            multiple
-                           accept='image/*,video/*,audio/*,.pdf'
+                           accept='image/*,video/*,audio/*,.pdf,.doc,.docx,.txt'
                            onChange={handleFileSelect}
                            className='hidden'
                         />
 
                         {/* Attachment Button with Options Menu */}
                         <div className='relative'>
-                            
-                            <button type='button' className='p-2 text-gray-600 hover:text-teal-600 transition-colors attachment-button'
-                            onClick={() => setShowAttachmentOptions(!showAttachmentOptions)} disabled={isSending}>
+                            <button 
+                                type='button' 
+                                className='p-2 text-gray-600 hover:text-teal-600 transition-colors attachment-button'
+                                onClick={() => setShowAttachmentOptions(!showAttachmentOptions)} 
+                                disabled={isSending || isRecording}
+                            >
                                 <RiAttachmentLine className='text-xl'/>
                             </button>
 
                             {/* Attachment Options Menu */}
                             {showAttachmentOptions && (
-                                <div ref={attachmentMenuRef} className='absolute bottom-14 left-0 bg-white border border-gray-200 rounded-lg 
-                                    shadow-xl z-50 py-2 min-w-[200px]'>
-
-                                    <button type='button' className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 
-                                    transition-colors' 
-                                    onClick={() => {
-                                        fileInputRef.current.click()
-                                        setShowAttachmentOptions(false)
-                                    }}>
+                                <div ref={attachmentMenuRef} className='absolute bottom-14 left-0 bg-white border border-gray-200 rounded-lg shadow-xl z-50 py-2 min-w-[200px]'>
+                                    <button 
+                                        type='button' 
+                                        className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors' 
+                                        onClick={() => {
+                                            fileInputRef.current.click();
+                                            setShowAttachmentOptions(false);
+                                        }}
+                                    >
                                         <div className="bg-blue-100 p-2 rounded-lg group-hover:bg-blue-200 transition-colors">
                                             <RiImageAddLine className="text-blue-600 text-lg" />
                                         </div>
@@ -976,13 +1200,15 @@ function Chatbox({ onBack }) {
                                         </div>
                                     </button>
 
-                                    <button type='button' className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 
-                                    transition-colors' 
-                                    onClick={() => {
-                                        fileInputRef.current.accept = '.pdf,.doc,.docx,.txt'
-                                        fileInputRef.current.click()
-                                        setShowAttachmentOptions(false)
-                                    }}>
+                                    <button 
+                                        type='button' 
+                                        className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors' 
+                                        onClick={() => {
+                                            fileInputRef.current.accept = '.pdf,.doc,.docx,.txt';
+                                            fileInputRef.current.click();
+                                            setShowAttachmentOptions(false);
+                                        }}
+                                    >
                                         <div className="bg-green-100 p-2 rounded-lg group-hover:bg-green-200 transition-colors">
                                             <RiFileTextLine className="text-green-600 text-lg" />
                                         </div>
@@ -991,25 +1217,24 @@ function Chatbox({ onBack }) {
                                         </div>
                                     </button>
 
-                                    <button type='button' className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 
-                                    transition-colors' 
-                                    onClick={() => {
-                                        fileInputRef.current.accept = 'audio/*'
-                                        fileInputRef.current.click()
-                                        setShowAttachmentOptions(false)
-                                    }}>
+                                    <button 
+                                        type='button' 
+                                        className='flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors' 
+                                        onClick={() => {
+                                            fileInputRef.current.accept = 'audio/*';
+                                            fileInputRef.current.click();
+                                            setShowAttachmentOptions(false);
+                                        }}
+                                    >
                                         <div className="bg-purple-100 p-2 rounded-lg group-hover:bg-purple-200 transition-colors">
                                             <RiMusicLine className="text-purple-600 text-lg" />
                                         </div>
                                         <div>
-                                            <p className="text-sm font-medium text-gray-800">Audio</p>
+                                            <p className="text-sm font-medium text-gray-800">Audio File</p>
                                         </div>
                                     </button>
-                                
                                 </div>
-                            
                             )}
-
                         </div>
                             
                         {/* Text Input */}
@@ -1017,56 +1242,86 @@ function Chatbox({ onBack }) {
                             type='text'
                             value={messageText}
                             onChange={(e) => setMessageText(e.target.value)}
-                            placeholder={editingMessage ? 'Edit your message...' : (isSending ? 'Sending message...' : 'Write Your Message....')}
-                            className='h-full text-[#2A3D39] outline-none text-base pl-3 pr-[50px] rounded-lg w-[98%] disabled:opacity-50 bg-transparent'
-                            disabled={isSending}
+                            placeholder={
+                                isRecording ? 'Recording... Click stop to send' : 
+                                editingMessage ? 'Edit your message...' : 
+                                (isSending ? 'Sending message...' : 'Write Your Message...')
+                            }
+                            className='h-full text-[#2A3D39] outline-none text-base pl-3 pr-[100px] rounded-lg w-[98%] disabled:opacity-50 bg-transparent'
+                            disabled={isSending || isRecording}
+                            readOnly={isRecording}
                         />
                         
                         <div className="absolute right-5 flex gap-1">
-                            {(messageText.trim() || attachments.length > 0) && !isSending && (
-                                <>
-                                {editingMessage && (
-                                    <button
-                                        type="button"
-                                        onClick={cancelEdit}
-                                        className="p-2 hover:bg-red-100 rounded transition-colors"
-                                        title="Cancel edit"
-                                        disabled={isSending}
-                                    >
-                                        <RiCloseLine className="text-red-500" />
-                                    </button>
-                                )}
+                            {/* Voice/Send Button */}
+                            {isRecording ? (
+                                // Stop recording button (shown when recording)
                                 <button 
-                                    type='submit' 
-                                    disabled={(!messageText.trim() && attachments.length === 0) || isSending}
-                                    className='flex items-center justify-center p-2 rounded-full 
-                                    bg-[#D9f2ed] hover:bg-[#c8eae3] disabled:opacity-50 
-                                    disabled:cursor-not-allowed transition-colors min-w-[40px] cursor-pointer'
-                                    aria-label={editingMessage ? "Update message" : (isSending ? "Sending message..." : "Send message")}
+                                    type="button"
+                                    onClick={stopRecording}
+                                    className="p-2 rounded-full bg-red-100 hover:bg-red-200 transition-colors min-w-[40px] cursor-pointer"
+                                    aria-label="Stop recording"
                                 >
-                                    {isSending ? (
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600"></div>
-                                    ) : editingMessage ? (
-                                        <RiCheckLine color="#01AA85" />
-                                    ) : (
-                                        <RiSendPlaneFill color="#01AA85" />
-                                    )}
+                                    <div className="w-4 h-4 bg-red-500 rounded-full"></div>
                                 </button>
+                            ) : (
+                                // Normal buttons (when not recording)
+                                <>
+                                    {(messageText.trim() || attachments.length > 0) && (
+                                        <>
+                                            {editingMessage && (
+                                                <button
+                                                    type="button"
+                                                    onClick={cancelEdit}
+                                                    className="p-2 hover:bg-red-100 rounded transition-colors"
+                                                    title="Cancel edit"
+                                                    disabled={isSending}
+                                                >
+                                                    <RiCloseLine className="text-red-500" />
+                                                </button>
+                                            )}
+                                            <button 
+                                                type='submit' 
+                                                disabled={(!messageText.trim() && attachments.length === 0) || isSending}
+                                                className='flex items-center justify-center p-2 rounded-full bg-[#D9f2ed] hover:bg-[#c8eae3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[40px] cursor-pointer'
+                                                aria-label={editingMessage ? "Update message" : (isSending ? "Sending message..." : "Send message")}
+                                            >
+                                                {isSending ? (
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600"></div>
+                                                ) : editingMessage ? (
+                                                    <RiCheckLine color="#01AA85" />
+                                                ) : (
+                                                    <RiSendPlaneFill color="#01AA85" />
+                                                )}
+                                            </button>
+                                        </>
+                                    )}
+                                    {!messageText.trim() && attachments.length === 0 && !editingMessage && (
+                                        // Voice button (shown when input is empty and not editing)
+                                        <button
+                                            type="button"
+                                            onClick={startRecording}
+                                            disabled={!isRecordingAllowed || isSending}
+                                            className="p-2 rounded-full bg-[#D9f2ed] hover:bg-[#c8eae3] transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[40px] cursor-pointer"
+                                            title={isRecordingAllowed ? "Record voice message" : "Microphone access required"}
+                                        >
+                                            <RiMic2Fill color="#01AA85" className="text-xl" />
+                                        </button>
+                                    )}
                                 </>
                             )}
                         </div>
-
                     </form>
-            
                 </div>
-
             </main>
 
             {/* Media Viewer Modal */}
             {selectedMessageForView && (
                 <div className='fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4'>
-                    <button className='absolute top-4 right-4 text-white p-2 hover:bg-white/20 rounded-full transition-colors' 
-                    onClick={() => setSelectedMessageForView(null)}>
+                    <button 
+                        className='absolute top-4 right-4 text-white p-2 hover:bg-white/20 rounded-full transition-colors' 
+                        onClick={() => setSelectedMessageForView(null)}
+                    >
                         <RiCloseLine className="text-2xl" />
                     </button>
 
@@ -1079,7 +1334,7 @@ function Chatbox({ onBack }) {
                             autoPlay
                             className="max-w-full max-h-[90vh]"
                         />
-                    ) : null }
+                    ) : null}
                 </div>
             )}
 
@@ -1106,8 +1361,6 @@ function Chatbox({ onBack }) {
                     animation: fadeIn 0.2s ease-out;
                 }
             `}</style>
-
-
         </section>
     );
 }
