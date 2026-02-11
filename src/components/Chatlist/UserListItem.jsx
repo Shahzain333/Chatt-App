@@ -15,10 +15,10 @@ const UserListItem = ({
   const hasChat = !!user.chatId;
 
   return (
-    <div className={`relative flex items-center w-full p-4 border-b border-gray-100 
-      hover:bg-gray-100 transition-colors ${isActive ? 'bg-green-100' : ''}`}>
+    <div className={`relative flex items-center w-full p-3 border-b border-gray-100 
+      hover:bg-gray-100 transition-colors ${isActive ? 'bg-green-50' : ''}`}>
       
-      <button className="flex items-center flex-1 text-left" onClick={() => onSelect(user)}>
+      <button className="flex items-center flex-1 text-left w-full" onClick={() => onSelect(user)}>
         <UserAvatar user={user} />
         <UserInfo user={user} hasChat={hasChat} />
       </button>
@@ -50,25 +50,31 @@ const UserAvatar = ({ user }) => (
 );
 
 const UserInfo = ({ user, hasChat }) => (
-  <div className="flex-1 min-w-0 ml-3">
+  <div className="flex-1 min-w-0 ml-3 overflow-hidden">
     
-    <div className="flex justify-between items-start">
+    <div className="flex justify-between items-start mb-0.5">
       
-      <h4 className="font-semibold text-gray-900 text-sm truncate">
-        {user?.fullName || user?.fullname || "ChatFrik User"}
-      </h4>
+      <div className="flex-1 min-w-0 mr-2">
+        <h4 className="font-semibold text-gray-900 text-sm truncate">
+          {user?.fullName || user?.fullname || "ChatFrik User"}
+        </h4>
+      </div>
       
       {user.lastMessageTimestamp && (
-        <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
+        <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">
           {formatTimestamp(user.lastMessageTimestamp)}
         </span>
       )}
 
     </div>
     
-    <p className="text-gray-600 text-sm truncate mt-1">
-      {hasChat ? (user.lastMessage || "No messages yet") : "Click to start chatting"}
-    </p>
+    <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <p className="text-gray-600 text-sm truncate max-w-[90%]">
+          {hasChat ? (user.lastMessage || "No messages yet") : "Click to start chatting"}
+        </p>
+      </div>
+    </div>
     
     {!hasChat && (
       <span className="absolute top-2 right-2 mt-1 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
@@ -94,7 +100,7 @@ const UserInfo = ({ user, hasChat }) => (
 // );
 
 const UserDropdown = ({ user, showDropdown, onToggleDropdown, onDelete }) => (
-  <div className="relative user-dropdown">
+  <div className="relative right-8 top-3 user-dropdown">
    
     <button 
       onClick={(e) => onToggleDropdown(user.uid, e)} 

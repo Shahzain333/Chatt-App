@@ -745,41 +745,41 @@ function Chatbox({ onBack }) {
     // Render voice message UI
     const renderVoiceMessage = (attachment, messageId) => {
         return (
-            <div className='bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg max-w-[300px]'>
-                <div className='flex items-center gap-3'>
+            <div className='bg-gradient-to-r from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg max-w-[300px]'>
+                <div className='flex items-center gap-1 sm:gap-3'>
                     
-                    <div className="bg-blue-100 p-3 rounded-full">
-                        <RiMusicLine className="text-blue-600 text-xl" />
+                    <div className="bg-blue-100 p-2 sm:p-3 rounded-full">
+                        <RiMusicLine className="text-blue-600 text-[14px] md:text-xl" />
                     </div>
-                    <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800 truncate">
-                            {attachment.name || 'Voice message'}
+                    <div className="flex-1 min-w-0">
+                        <p className=" text-[14px] sm:text-sm font-medium text-gray-800 truncate">
+                            {attachment.file || 'Voice message'}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-[10px] md:text-xs text-gray-500">
                             {formatFileSize(attachment.size)} • Voice message
                         </p>
                     </div>
 
                     <button 
                         onClick={() => toggleAudioPlay(messageId, attachment.url)}
-                        className="p-2 bg-blue-100 hover:bg-blue-200 rounded-full transition-colors"
+                        className="p-1 sm:p-2 bg-blue-100 hover:bg-blue-200 rounded-full transition-colors"
                         title={playingAudio === messageId ? "Pause" : "Play"}
                     >
                         {playingAudio === messageId ? 
-                            <RiPauseCircleLine className="text-blue-600 text-xl" /> : 
-                            <RiPlayCircleLine className="text-blue-600 text-xl" />
+                            <RiPauseCircleLine className="text-blue-600 text-[14px] sm:text-xl" /> : 
+                            <RiPlayCircleLine className="text-blue-600 text-[14px] sm:text-xl" />
                         }
                     </button>
 
                     <button 
                         onClick={(e) => {
                             e.stopPropagation();
-                            handleDownload(attachment.url, attachment.name || 'voice_message.webm');
+                            handleDownload(attachment.url, attachment.file || 'voice_message.webm');
                         }}
-                        className="p-2 hover:bg-gray-200 rounded-full"
+                        className="p-1 sm:p-2 hover:bg-gray-200 rounded-full"
                         title="Download"
                     >
-                        <RiDownloadLine className="text-gray-600" />
+                        <RiDownloadLine className="text-gray-600 text-[14px] sm:text-xl" />
                     </button>
                 </div>
                 <audio 
@@ -849,7 +849,64 @@ function Chatbox({ onBack }) {
                                             <RiDownloadLine />
                                         </button>
                                     </div>
-                                ) : attachment.type === 'audio' ? (
+                                ) : attachment.type === 'audio' || attachment.mimeType?.includes('audio') ? (
+                                    // Regular audio file UI (not voice message)
+                                    // <div className='bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg max-w-[300px] border border-purple-100'>
+                                    //     <div className='flex items-center gap-3'>
+                                    //         <div className="bg-purple-100 p-3 rounded-full">
+                                    //             <RiMusicLine className="text-purple-600 text-xl" />
+                                    //         </div>
+                                    //         <div className="flex-1">
+                                    //             <p className="text-sm font-medium text-gray-800 truncate">
+                                    //                 {attachment.name || 'Audio file'}
+                                    //             </p>
+                                    //             <p className="text-xs text-gray-500">
+                                    //                 {formatFileSize(attachment.size)} • Audio
+                                    //             </p>
+                                    //         </div>
+                                    //         <audio 
+                                    //             ref={(el) => audioRefs.current[msg.id + index] = el} 
+                                    //             className="hidden" 
+                                    //             src={attachment.url}
+                                    //         />
+                                    //         <button 
+                                    //             onClick={() => {
+                                    //                 const audioUrl = attachment.url;
+                                    //                 const audioElement = audioRefs.current[msg.id + index];
+                                    //                 if (playingAudio === (msg.id + index)) {
+                                    //                     audioElement?.pause();
+                                    //                     setPlayingAudio(null);
+                                    //                 } else {
+                                    //                     if (playingAudio) {
+                                    //                         const currentAudio = audioRefs.current[playingAudio];
+                                    //                         currentAudio?.pause();
+                                    //                         currentAudio.currentTime = 0;
+                                    //                     }
+                                    //                     audioElement?.play();
+                                    //                     setPlayingAudio(msg.id + index);
+                                    //                     audioElement.onended = () => setPlayingAudio(null);
+                                    //                 }
+                                    //             }}
+                                    //             className="p-2 bg-purple-100 hover:bg-purple-200 rounded-full transition-colors"
+                                    //             title={playingAudio === (msg.id + index) ? "Pause" : "Play"}
+                                    //         >
+                                    //             {playingAudio === (msg.id + index) ? 
+                                    //                 <RiPauseCircleLine className="text-purple-600 text-xl" /> : 
+                                    //                 <RiPlayCircleLine className="text-purple-600 text-xl" />
+                                    //             }
+                                    //         </button>
+                                    //         <button 
+                                    //             onClick={(e) => {
+                                    //                 e.stopPropagation();
+                                    //                 handleDownload(attachment.url, attachment.name || 'audio_file.mp3');
+                                    //             }}
+                                    //             className="p-2 hover:bg-gray-200 rounded-full"
+                                    //             title="Download"
+                                    //         >
+                                    //             <RiDownloadLine className="text-gray-600" />
+                                    //         </button>
+                                    //     </div>
+                                    // </div>
                                     renderVoiceMessage(attachment, msg.id + index)
                                 ) : (
                                     <div className='bg-gray-50 hover:bg-gray-100 p-4 rounded-lg max-w-[300px] border border-gray-200 transition-colors cursor-pointer group'>
@@ -887,7 +944,7 @@ function Chatbox({ onBack }) {
 
                 {msg.text && msg.text !== 'Photo' && msg.text !== 'Video' && msg.text !== 'Audio' && 
                  msg.text !== 'File' && msg.text !== 'Voice message' && (
-                    <p className='text-md'>
+                    <p className='text-md break-words whitespace-pre-wrap max-w-full overflow-hidden'>
                         {msg.text}
                     </p>
                 )}
@@ -1003,9 +1060,9 @@ function Chatbox({ onBack }) {
                                         {msg.sender === currentUser?.email ? (
                                             <div className="flex flex-col items-end w-full">
                                                 <div className="flex gap-3 me-5 max-w-[85%]">
-                                                    <div className="relative">
+                                                    <div className="relative w-full">
                                                         <div 
-                                                            className="bg-white pl-2 pr-2 pt-2 rounded-tl-2xl rounded-b-2xl shadow-sm message-content cursor-pointer hover:bg-gray-50 transition-colors"
+                                                            className="bg-white pl-3 pr-3 pt-2 pb-1 rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl shadow-sm message-content cursor-pointer hover:bg-gray-50 transition-colors max-w-full"
                                                             onClick={(e) => handleMessageClick(msg.id, e)}
                                                         >
                                                             {renderMessageContent(msg, true)}
@@ -1043,11 +1100,11 @@ function Chatbox({ onBack }) {
                                                 <div className="flex gap-3 max-w-[80%] ms-5">
                                                     <img 
                                                         src={selectedUser?.image || defaultAvatar} 
-                                                        className="h-8 w-8 object-cover rounded-full mt-1" 
+                                                        className="h-8 w-8 object-cover rounded-full mt-1 flex-shrink-0" 
                                                         alt={selectedUser?.fullname || "User"} 
                                                     />
                                                     <div className="relative">
-                                                        <div className="bg-white pl-2 pr-2 pt-2 rounded-tl-2xl rounded-b-2xl shadow-sm message-content">
+                                                        <div className="bg-white pl-3 pr-3 pt-2 pb-1 rounded-tr-2xl rounded-tl-2xl rounded-br-2xl shadow-sm message-content max-w-full">
                                                             {renderMessageContent(msg, true)}
                                                         </div>
                                                         <p className="text-gray-400 text-xs mt-1">
@@ -1341,7 +1398,7 @@ function Chatbox({ onBack }) {
             {/* CSS Styles */}
             <style jsx>{`
                 .custom-scrollbar::-webkit-scrollbar {
-                    width: 6px;
+                    width: 4px;
                 }
                 .custom-scrollbar::-webkit-scrollbar-track {
                     background: transparent;
@@ -1353,10 +1410,24 @@ function Chatbox({ onBack }) {
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
                     background: #94a3b8;
                 }
+
+                /* Message text wrapping and truncation */
+                .message-content {
+                    word-break: break-word;
+                    overflow-wrap: break-word;
+                    min-width: 0; /* Important for flex/grid truncation */
+                }
+                
+                /* For very long single words/URLs */
+                .break-all-long {
+                    word-break: break-all;
+                }
+
                 @keyframes fadeIn {
                     from { opacity: 0; transform: translateY(-5px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
+                    
                 .animate-fadeIn {
                     animation: fadeIn 0.2s ease-out;
                 }
