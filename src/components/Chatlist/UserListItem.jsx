@@ -18,7 +18,7 @@ const UserListItem = ({
     <div className={`relative flex items-center w-full p-3 border-b border-gray-100 
       hover:bg-gray-100 transition-colors ${isActive ? 'bg-green-50' : ''}`}>
       
-      <button className="flex items-center flex-1 text-left w-full" onClick={() => onSelect(user)}>
+      <button className="flex items-center flex-1 text-left w-full min-w-0" onClick={() => onSelect(user)}>
         <UserAvatar user={user} />
         <UserInfo user={user} hasChat={hasChat} />
       </button>
@@ -50,30 +50,32 @@ const UserAvatar = ({ user }) => (
 );
 
 const UserInfo = ({ user, hasChat }) => (
-  <div className="flex-1 min-w-0 ml-3 overflow-hidden">
+  <div className="flex-1 min-w-0 ml-2 overflow-hidden">
     
     <div className="flex justify-between items-start mb-0.5">
       
-      <div className="flex-1 min-w-0 mr-2">
+      <div className="flex-1 min-w-0 mr-2 overflow-hidden">
         <h4 className="font-semibold text-gray-900 text-sm truncate">
           {user?.fullName || user?.fullname || "ChatFrik User"}
         </h4>
       </div>
       
       {user.lastMessageTimestamp && (
-        <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">
+        <span className="text-xs text-gray-500 whitespace-nowrap shrink-0 absolute right-2">
           {formatTimestamp(user.lastMessageTimestamp)}
         </span>
       )}
 
     </div>
     
-    <div className="flex items-center gap-2">
+    <div className="flex  gap-2 min-w-0">
+      
       <div className="flex-1 min-w-0 overflow-hidden">
-        <p className="text-gray-600 text-sm truncate max-w-[90%]">
+        <p className="text-gray-600 text-sm truncate">
           {hasChat ? (user.lastMessage || "No messages yet") : "Click to start chatting"}
         </p>
       </div>
+      
     </div>
     
     {!hasChat && (
@@ -100,11 +102,11 @@ const UserInfo = ({ user, hasChat }) => (
 // );
 
 const UserDropdown = ({ user, showDropdown, onToggleDropdown, onDelete }) => (
-  <div className="relative right-8 top-3 user-dropdown">
+  <div className="relative top-3 user-dropdown">
    
     <button 
       onClick={(e) => onToggleDropdown(user.uid, e)} 
-      className="p-2 rounded-full hover:bg-gray-200 transition-colors" 
+      className="p-2 rounded-full hover:bg-gray-200 transition-colors shrink-0" 
       aria-label="More options"
     >
       <RiArrowDownSLine className={`text-gray-500 transition-transform ${showDropdown ? 

@@ -745,8 +745,8 @@ function Chatbox({ onBack }) {
     // Render voice message UI
     const renderVoiceMessage = (attachment, messageId) => {
         return (
-            <div className='bg-gradient-to-r from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg max-w-[300px]'>
-                <div className='flex items-center gap-1 sm:gap-3'>
+            <div className='bg-gradient-to-r from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-lg w-full '>
+                <div className='flex items-center gap-1 sm:gap-3 w-full'>
                     
                     <div className="bg-blue-100 p-2 sm:p-3 rounded-full">
                         <RiMusicLine className="text-blue-600 text-[14px] md:text-xl" />
@@ -1056,13 +1056,14 @@ function Chatbox({ onBack }) {
                                 </div>
                             ) : (
                                 sortedMessages.map((msg, index) => (
-                                    <div key={msg.id || `msg-${index}`} className="mb-4 relative">
+                                    <div key={msg.id || `msg-${index}`} className="mb-1 relative">
                                         {msg.sender === currentUser?.email ? (
                                             <div className="flex flex-col items-end w-full">
-                                                <div className="flex gap-3 me-5 max-w-[85%]">
+                                                <div className="flex gap-3 me-2 max-w-[220px] sm:max-w-[380px]">
+
                                                     <div className="relative w-full">
                                                         <div 
-                                                            className="bg-white pl-3 pr-3 pt-2 pb-1 rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl shadow-sm message-content cursor-pointer hover:bg-gray-50 transition-colors max-w-full"
+                                                            className="bg-white pl-3 pr-3 pt-2 pb-1 rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl shadow-sm message-content cursor-pointer hover:bg-gray-50 transition-colors"
                                                             onClick={(e) => handleMessageClick(msg.id, e)}
                                                         >
                                                             {renderMessageContent(msg, true)}
@@ -1096,20 +1097,42 @@ function Chatbox({ onBack }) {
                                             </div>
                                         ) : (
                                             // Other User's Messages
+                                            // <div className="flex flex-col items-start w-full">
+                                                
+                                            //     <div className="flex gap-2 sm:gap-3 max-w-[220px] sm:max-w-[380px]">
+                                                   
+                                            //         <img 
+                                            //             src={selectedUser?.image || defaultAvatar} 
+                                            //             className="h-8 w-8 object-cover rounded-full flex-shrink-0" 
+                                            //             alt={selectedUser?.fullname || "User"} 
+                                            //         />
+                                                    
+                                            //         <div className="relative w-full">
+                                            //             <div className="bg-white pl-3 pr-3 pt-2 pb-1 rounded-tr-2xl rounded-tl-2xl rounded-br-2xl shadow-sm message-content w-full">
+                                            //                 {renderMessageContent(msg, true)}
+                                            //             </div>
+                                            //             <p className="text-gray-400 text-xs mt-1">
+                                            //                 {msg.edited && <span className="ml-1 text-gray-500">(edited)</span>}
+                                            //             </p>
+                                            //         </div>
+                                            //     </div>
+                                            // </div>
                                             <div className="flex flex-col items-start w-full">
-                                                <div className="flex gap-3 max-w-[80%] ms-5">
-                                                    <img 
-                                                        src={selectedUser?.image || defaultAvatar} 
-                                                        className="h-8 w-8 object-cover rounded-full mt-1 flex-shrink-0" 
-                                                        alt={selectedUser?.fullname || "User"} 
-                                                    />
-                                                    <div className="relative">
-                                                        <div className="bg-white pl-3 pr-3 pt-2 pb-1 rounded-tr-2xl rounded-tl-2xl rounded-br-2xl shadow-sm message-content max-w-full">
+                                                <div className="flex gap-2 max-w-[220px] sm:max-w-[380px]">
+
+                                                    <div className="relative w-full">
+                                                        
+                                                        <div 
+                                                            className="bg-white pl-3 pr-3 pt-2 pb-1 rounded-bl-2xl rounded-tr-2xl rounded-br-2xl shadow-sm message-content cursor-pointer hover:bg-gray-50 transition-colors"
+                                                            onClick={(e) => handleMessageClick(msg.id, e)}
+                                                        >
                                                             {renderMessageContent(msg, true)}
                                                         </div>
+                                                        
                                                         <p className="text-gray-400 text-xs mt-1">
                                                             {msg.edited && <span className="ml-1 text-gray-500">(edited)</span>}
                                                         </p>
+
                                                     </div>
                                                 </div>
                                             </div>
@@ -1432,6 +1455,7 @@ function Chatbox({ onBack }) {
                     animation: fadeIn 0.2s ease-out;
                 }
             `}</style>
+
         </section>
     );
 }

@@ -4,7 +4,7 @@ import { selectUser } from '../store/authSlice'
 import SideBar from '../components/SideBar'
 import ChatList from '../components/Chatlist/ChatList'
 import ChatBox from '../components/Chatbox' 
-import { clearChatState, setSelectedUser, setMessages } from '../store/chatSlice'
+import {  setSelectedUser, setMessages } from '../store/chatSlice'
 
 function Dashboard() {
   
@@ -14,7 +14,7 @@ function Dashboard() {
   const dispatch = useDispatch();
   
   // Get user and SelectedUser from Redux only
-  const user = useSelector(selectUser)
+  //const user = useSelector(selectUser)
   const selectedUser = useSelector(state => state.chat.selectedUser)
 
   useEffect(() => {
@@ -62,7 +62,7 @@ function Dashboard() {
       <div className='flex-1 flex flex-col lg:flex-row relative'>
         
         <div className={`${!isMobile || mobileView === 'chatlist' ? 'flex' : 'hidden'} lg:flex 
-          lg:w-[400px] xl:w-[500px] w-full absolute lg:relative inset-0 z-20 bg-white 
+          lg:w-[400px] xl:w-[500px] w-full absolute lg:relative inset-0 z-20 bg-white min-w-0
           transition-transform duration-300 ${isMobile && mobileView === 'chatbox' ? 
           '-translate-x-full' : 'translate-x-0'}`}>
           <ChatList />
