@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import { selectUser } from '../store/authSlice'
 import SideBar from '../components/SideBar'
 import ChatList from '../components/Chatlist/ChatList'
-import ChatBox from '../components/Chatbox' 
+import ChatBox from '../components/Chatbox/Chatbox' 
 import {  setSelectedUser, setMessages } from '../store/chatSlice'
 
 function Dashboard() {
