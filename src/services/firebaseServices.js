@@ -60,8 +60,8 @@ class SupabaseService {
         await this.addUser({
           uid: authData.user.id,
           email: authData.user.email,
-          username: authData.user.email.split('@')[0],
-          fullName: username || '',
+          username: authData.user.user_metadata?.username || authData.user.username,
+          // fullName: authData.user.user_metadata?.username || authData.user.username,
           image: ""
         });
       }
@@ -153,7 +153,7 @@ class SupabaseService {
           uid: userData.uid,
           email: userData.email,
           username: userData.username,
-          fullname: userData.fullName,
+          //fullname: userData.fullName,
           image: userData.image,
           //createdAt: new Date().toISOString()
         });

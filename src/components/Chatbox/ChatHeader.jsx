@@ -78,15 +78,15 @@ const ChatHeader = ({
                 <img 
                     src={selectedUser?.image || defaultAvatar} 
                     className='w-11 h-11 object-cover rounded-full' 
-                    alt={selectedUser?.fullname || "User"} 
+                    alt={selectedUser?.username || "User"} 
                 />
                 
                 <div className='flex-1'>
                     <h3 className='font-semibold text-[#2A3D39] sm:text-lg text-[16px]'>
-                        {selectedUser?.fullname || "Chatfrik User"}
+                        {selectedUser?.username || "Chatfrik User"}
                     </h3>
                     <p className='font-light text-[#2A3D39] sm:text-sm text-[14px]'>
-                        @{selectedUser?.username || "chatfrik"}
+                        @{selectedUser?.email.split('@')[0] || "chatfrik"}
                     </p>
                 </div>
             </main>

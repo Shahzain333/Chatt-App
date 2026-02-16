@@ -100,8 +100,8 @@ function Signup() {
             dispatch(login({
                 uid: userData.uid,
                 email: userData.email,
-                username: userData.username,
-                fullName: userData.fullname || formData.username,
+                username: userData.username || formData.username,
+                // fullName: userData.fullname || formData.username,
                 image: userData.image
             }))
             

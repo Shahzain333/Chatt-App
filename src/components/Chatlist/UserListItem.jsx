@@ -41,7 +41,7 @@ const UserAvatar = ({ user }) => (
     <img 
       src={user?.image || defaultAvatar} 
       className="h-12 w-12 rounded-full object-cover" 
-      alt={user?.fullname || "User"} 
+      alt={user?.username || "User"} 
     />
     {user.status === 'online' && (
       <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
@@ -56,7 +56,7 @@ const UserInfo = ({ user, hasChat }) => (
       
       <div className="flex-1 min-w-0 mr-2 overflow-hidden">
         <h4 className="font-semibold text-gray-900 text-sm truncate">
-          {user?.fullName || user?.fullname || "ChatFrik User"}
+          {user?.username || "ChatFrik User"}
         </h4>
       </div>
       

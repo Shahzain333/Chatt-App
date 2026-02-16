@@ -8,11 +8,11 @@ const Header = ({ currentUser, isMenuOpen, onToggleMenu }) => (
       <img 
         src={currentUser?.image || defaultAvatar} 
         className="w-10 h-10 object-cover rounded-full" 
-        alt={currentUser?.fullName || "Profile"} 
+        alt={currentUser?.username || "Profile"} 
       />
       <span className="hidden md:block">
-        <h3 className="font-semibold text-[#2A3D39] text-sm">{currentUser?.fullName || "ChatFrik user"}</h3>
-        <p className="font-light text-[#2A3D39] text-xs">@{currentUser?.username || "chatfrik"}</p>
+        <h3 className="font-semibold text-[#2A3D39] text-sm">{currentUser?.username || "ChatFrik user"}</h3>
+        <p className="font-light text-[#2A3D39] text-xs">@{currentUser?.email.split('@')[0] || "chatfrik"}</p>
       </span>
     </div>
     
