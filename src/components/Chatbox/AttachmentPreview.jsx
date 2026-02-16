@@ -7,7 +7,9 @@ const AttachmentPreview = ({
     onClearAll, 
     onRemoveAttachment,
     getFileIcon,
-    formatFileSize 
+    formatFileSize,
+    isRecording,
+    isSending 
 }) => {
     if (previewImage) {
         return (
@@ -18,7 +20,8 @@ const AttachmentPreview = ({
                             <RiImageLine className="text-blue-500" />
                             <span className="text-sm font-medium text-gray-700">Image Preview</span>
                         </div>
-                        <button onClick={onClearAll} className='text-gray-400 hover:text-red-500 transition-colors p-1'>
+                        <button disabled={isRecording || isSending} onClick={onClearAll} className='text-gray-400 
+                        hover:text-red-500 transition-colors p-1 disabled:opacity-50 disabled:cursor-not-allowed'>
                             <RiCloseCircleFill className="text-lg"/>
                         </button>
                     </div>

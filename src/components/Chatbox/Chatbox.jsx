@@ -264,9 +264,11 @@ function Chatbox({ onBack }) {
                     onRemoveAttachment={removeAttachment}
                     getFileIcon={getFileIcon}
                     formatFileSize={formatFileSize}
+                    isRecording={isRecording}
+                    isSending={isSending}
                 />
 
-                <UploadProgress uploadProgress={uploadProgress} />
+                {/* <UploadProgress uploadProgress={uploadProgress} /> */}
 
                 <MessageInput 
                     messageText={messageText}
